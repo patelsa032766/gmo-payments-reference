@@ -1,0 +1,43 @@
+# Local secrets and environment overrides. Commit only documented examples.
+.env
+.env.*
+!.env.example
+application-local.yml
+application-local.yaml
+**/application-local.yml
+**/application-local.yaml
+*.pem
+*.key
+*.p12
+*.jks
+
+# Runtime databases, SQLite journals, imported reconciliation files, and exports.
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+runtime/
+data/
+imports/
+exports/
+reconciliation-inbox/
+
+# Java, Gradle, Maven, Angular, Node, IDE, and operating-system output.
+target/
+build/
+.gradle/
+node_modules/
+dist/
+.angular/
+coverage/
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Local tunnel and SFTP configuration must never enter the public distribution.
+cloudflared.yml
+cloudflared.yaml
+sftp-local.yml
+sftp-local.yaml

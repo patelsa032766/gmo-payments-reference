@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>GMO Insurance Checkout - Experience Mock</title>
+    <link rel="stylesheet" href="styles.css?v=20260901-28" />
+    <link rel="stylesheet" href="ops-mock.css?v=20260901-28" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="#top" aria-label="GMO Insurance Checkout home">
+          <span class="brand-mark"><i></i><i></i><i></i></span>
+          <span>gmo<span>Checkout</span></span>
+        </a>
+        <nav class="workspace-tabs" role="tablist" aria-label="Prototype view">
+          <button id="checkout-view-tab" class="workspace-tab is-selected" type="button" role="tab"
+            aria-selected="true" aria-controls="checkout-panel" data-workspace-view="checkout">Checkout</button>
+          <button id="config-view-tab" class="workspace-tab" type="button" role="tab"
+            aria-selected="false" aria-controls="configuration-panel" data-workspace-view="configuration">Configuration</button>
+          <button id="operations-view-tab" class="workspace-tab" type="button" role="tab"
+            aria-selected="false" aria-controls="operations-panel" data-workspace-view="operations">API &amp; Webhooks</button>
+          <button id="mit-view-tab" class="workspace-tab" type="button" role="tab"
+            aria-selected="false" aria-controls="mit-panel" data-workspace-view="mit">MIT Transactions</button>
+        </nav>
+        <div class="secure-status"><span class="lock">&#128274;</span> <span data-i18n="secureCheckout">Secure checkout</span></div>
+      </header>
+
+      <main id="top" class="checkout-layout">
+        <section id="checkout-panel" class="customer-flow" role="tabpanel" aria-labelledby="checkout-view-tab">
+          <div class="progress" aria-label="Checkout progress">
+            <span class="progress-item is-active" data-progress="first"><b>1</b><span data-i18n="payment">Payment</span></span>
+            <span class="progress-line future-progress-only"></span>
+            <span class="progress-item future-progress-only" data-progress="future"><b>2</b><span data-i18n="futurePayments">Future payments</span></span>
+            <span class="progress-line"></span>
+            <span class="progress-item" data-progress="review"><b>3</b><span data-i18n="confirmation">Confirmation</span></span>
+          </div>
+
+          <section class="application-card" aria-label="Application summary">
+            <div>
+              <span class="caption" data-i18n="application">Application</span>
+              <strong id="application-number">APP-20260821-001</strong>
+            </div>
+            <div>
+              <span class="caption" data-i18n="policy">Policy</span>
+              <strong data-i18n="homeProtection">Annuity</strong>
+            </div>
+            <div class="amount-wrap">
+              <span class="caption" data-i18n="dueToday">Due today</span>
+              <strong id="summary-amount">JPY 10,000</strong>
+            </div>
+            <div>
+              <span class="caption" data-i18n="paymentPlan">Payment plan</span>
+              <strong id="policy-schedule">Monthly policy</strong>
+            </div>
+          </section>
+
+          <section id="screen-first" class="checkout-screen" aria-labelledby="method-title">
+            <section class="payment-section" aria-labelledby="method-title">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow" data-i18n="paymentMethod">Payment method</p>
+                  <h1 id="method-title" class="section-title" data-i18n="choosePaymentMethod">Choose a payment method</h1>
+                </div>
+              </div>
+              <div id="payment-methods" class="method-list"></div>
+              <p id="payment-error" class="enrollment-error is-hidden" role="alert"></p>
+              <section id="payment-pending" class="payment-pending is-hidden" role="status" aria-live="polite">
+                <span class="payment-pending-icon" aria-hidden="true">…</span>
+                <div>
+                  <h2 id="payment-pending-title">We’re confirming your payment</h2>
+                  <p id="payment-pending-lead">No second payment request will be sent while the result is unknown.</p>
+                  <button id="check-payment-status" class="secondary-button" type="button">Check payment status</button>
+                </div>
+              </section>
+            </section>
+
+            <section id="future-use" class="future-use is-hidden" aria-live="polite" aria-labelledby="future-title">
+              <div class="future-copy">
+                <p id="future-eyebrow" class="eyebrow">Future payments</p>
+                <h2 id="future-title">Use this method for future monthly payments?</h2>
+                <p id="future-description">Choose whether this reusable payment method should also be used for future monthly payments.</p>
+              </div>
+              <div id="future-choice-group" class="choice-group" role="group" aria-label="Future payment preference">
+                <button class="choice" data-save="yes" type="button">Yes, save this method</button>
+                <button class="choice" data-save="no" type="button">No, choose a future source</button>
+              </div>
+            </section>
+
+            <div class="screen-actions first-actions">
+              <button id="first-continue" class="primary-button" type="button">Continue <span>&rarr;</span></button>
+            </div>
+          </section>
+
+          <section id="screen-future" class="checkout-screen is-hidden" aria-labelledby="future-screen-title">
+            <p class="eyebrow">Future payments</p>
+            <h1 id="future-screen-title">Set up future payments.</h1>
+            <p class="lead">Today's payment is separate. Choose a reusable method for future monthly payments. You may use another card or bank account, even when the payment type is the same.</p>
+
+            <section class="payment-plan-summary" aria-label="First payment summary">
+              <div>
+                <span class="caption">First payment</span>
+                <strong id="future-first-method">Convenience-store payment</strong>
+              </div>
+              <div class="amount-wrap">
+                <span class="caption">Due today</span>
+                <strong id="future-first-amount">JPY 10,000</strong>
+              </div>
+            </section>
+
+            <section class="payment-section future-payment-section" aria-labelledby="future-method-title">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Monthly payment method</p>
+                  <h2 id="future-method-title">Choose a payment source to save</h2>
+                </div>
+                <span class="needs-action">Required</span>
+              </div>
+              <p class="subtle">Only methods eligible for recurring payments are shown. All eligible categories remain available, so a customer can use a different Card or real-time bank-debit source for monthly payments.</p>
+              <div id="future-methods" class="recurring-methods"></div>
+            </section>
+
+            <div class="screen-actions">
+              <button id="future-back" class="secondary-button" type="button">Back</button>
+              <button id="future-continue" class="primary-button" type="button">Continue to review <span>&rarr;</span></button>
+            </div>
+          </section>
+
+          <section id="screen-review" class="checkout-screen is-hidden" aria-labelledby="confirmation-title">
+            <div class="confirmation-hero">
+              <span class="confirmation-check" aria-hidden="true">&#10003;</span>
+              <div>
+                <p class="eyebrow" data-i18n="confirmation">Confirmation</p>
+                <h1 id="confirmation-title" data-i18n="paymentSuccessful">Payment successful.</h1>
+                <p id="confirmation-lead" class="lead" data-i18n="paymentSuccessLead">Your first payment was successful. This payment method is ready for future monthly payments.</p>
+              </div>
+            </div>
+
+            <dl class="confirmation-details" aria-label="Payment confirmation details">
+              <div>
+                <dt data-i18n="application">Application</dt>
+                <dd>APP-20260821-001</dd>
+              </div>
+              <div>
+                <dt data-i18n="paymentMethod">Payment method</dt>
+                <dd id="confirmation-method">Credit or debit card</dd>
+              </div>
+              <div>
+                <dt id="confirmation-amount-label" data-i18n="amountPaid">Amount paid</dt>
+                <dd id="confirmation-amount">JPY 10,000</dd>
+              </div>
+              <div>
+                <dt data-i18n="transactionReference">Reference</dt>
+                <dd id="confirmation-reference">GMO-00000000</dd>
+              </div>
+            </dl>
+
+            <section id="koza-confirmation" class="koza-confirmation is-hidden" aria-label="Koza Furikae registration and first-premium bank-transfer instructions">
+              <div class="koza-completion-summary">
+                <div>
+                  <span class="koza-status-check" aria-hidden="true">&#10003;</span>
+                  <span><small id="koza-future-label">Future monthly payments</small><strong id="koza-registration-status">Koza Furikae registered</strong><code id="koza-registration-reference">KZA-00000000</code></span>
+                </div>
+                <div>
+                  <span class="koza-status-number" aria-hidden="true">1</span>
+                  <span><small id="koza-first-label">First premium</small><strong id="koza-transfer-status">Bank transfer due</strong></span>
+                </div>
+              </div>
+
+              <section class="koza-transfer-instructions" aria-labelledby="koza-transfer-heading">
+                <p class="eyebrow">Furikomi / 銀行振込</p>
+                <h2 id="koza-transfer-heading">Transfer amount: JPY 10,000</h2>
+                <dl>
+                  <div><dt id="koza-transfer-bank-label">Bank</dt><dd id="koza-transfer-bank">GMO Aozora Net Bank</dd></div>
+                  <div><dt id="koza-transfer-branch-label">Branch</dt><dd id="koza-transfer-branch">Insurance Premiums / 503</dd></div>
+                  <div><dt id="koza-transfer-type-label">Account type</dt><dd id="koza-transfer-type">Ordinary</dd></div>
+                  <div><dt id="koza-transfer-number-label">Account number</dt><dd id="koza-transfer-number">3352017</dd></div>
+                  <div><dt id="koza-transfer-name-label">Account name</dt><dd id="koza-transfer-name">GMO INSURANCE COLLECTIONS</dd></div>
+                  <div><dt id="koza-transfer-reference-label">Transfer reference</dt><dd id="koza-transfer-reference">APP00000000</dd></div>
+                  <div><dt id="koza-transfer-by-label">Transfer by</dt><dd id="koza-transfer-by">10 Sep 2026, 15:00 JST</dd></div>
+                </dl>
+                <p id="koza-transfer-notice" class="koza-transfer-notice">The first premium has not been paid yet. Use the exact transfer reference so the payment can be matched to this application.</p>
+              </section>
+            </section>
+
+            <div class="screen-actions confirmation-actions">
+              <button id="confirmation-done" class="primary-button" type="button">Return to application <span>&rarr;</span></button>
+            </div>
+          </section>
+        </section>
+
+        <aside id="configuration-panel" class="experience-panel is-hidden" role="tabpanel" aria-labelledby="config-view-tab">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Experience controls</p>
+              <h2>Configure the checkout</h2>
+            </div>
+            <span class="prototype-badge">Prototype</span>
+          </div>
+          <p class="panel-intro">Backend inputs, eligibility rules, and visual tokens live here. The customer-facing Checkout tab remains clean.</p>
+
+          <div class="config-sections">
+            <section class="config-card config-release" aria-labelledby="config-release-title">
+              <div>
+                <div class="config-release-heading">
+                  <span id="config-status" class="config-state is-active">Active</span>
+                  <span id="config-version">Version 12</span>
+                </div>
+                <h3 id="config-release-title">Configuration release</h3>
+                <p id="config-release-copy">The active configuration is serving Checkout. Changes below create a draft preview.</p>
+                <span id="config-updated" class="config-release-meta">Published 30 Aug 2026 at 10:14 · Y. Nakamura</span>
+              </div>
+              <div class="config-release-actions">
+                <button id="discard-config" class="secondary-button" type="button" disabled>Discard draft</button>
+                <button id="publish-config" class="primary-button" type="button" disabled>Publish changes</button>
+              </div>
+            </section>
+
+            <section class="config-card policy-controls" aria-labelledby="policy-controls-title">
+              <div class="config-card-heading">
+                <div>
+                  <h3 id="policy-controls-title">Eligibility inputs</h3>
+                  <p>Change the application context used to determine available methods.</p>
+                </div>
+              </div>
+
+              <div class="config-field-grid">
+                <div class="config-field">
+                  <label class="field-label" for="channel">Distribution channel</label>
+                  <div class="segmented-control" id="channel" role="group" aria-label="Distribution channel">
+                    <button class="segment is-selected" data-channel="PA" type="button">PA</button>
+                    <button class="segment" data-channel="IA" type="button">IA</button>
+                    <button class="segment" data-channel="FI" type="button">FI</button>
+                  </div>
+                </div>
+
+                <div class="config-field">
+                  <label class="field-label" for="amount">Due today</label>
+                  <select id="amount" class="select-control">
+                    <option value="10000">JPY 10,000</option>
+                    <option value="25000">JPY 25,000</option>
+                    <option value="75000">JPY 75,000</option>
+                    <option value="150000">JPY 150,000</option>
+                    <option value="299999">JPY 299,999</option>
+                    <option value="300000">JPY 300,000</option>
+                    <option value="500000">JPY 500,000</option>
+                    <option value="750000">JPY 750,000</option>
+                    <option value="1000000">JPY 1,000,000</option>
+                    <option value="1000001">JPY 1,000,001</option>
+                  </select>
+                </div>
+
+                <div class="config-field">
+                  <span class="field-label" id="language-label">Checkout language</span>
+                  <div class="segmented-control" id="language" role="group" aria-labelledby="language-label">
+                    <button class="segment is-selected" data-language="en" type="button">English</button>
+                    <button class="segment" data-language="ja" type="button">日本語</button>
+                  </div>
+                </div>
+
+                <label class="config-field" for="checkout-outcome">
+                  <span class="field-label">Checkout test outcome</span>
+                  <span class="field-help">Controls the next simulated customer submission.</span>
+                  <select id="checkout-outcome" class="select-control">
+                    <option value="success">Successful payment</option>
+                    <option value="declined">Payment declined</option>
+                    <option value="cancelled">Customer cancels provider approval</option>
+                    <option value="debit-failed">Bank registered, debit fails</option>
+                    <option value="unknown">Result unknown / inquiry required</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="config-toggle-grid">
+                <div class="toggle-line">
+                  <div>
+                    <span class="field-label">eKYC verified</span>
+                    <span class="field-help">Affects bank-direct eligibility.</span>
+                  </div>
+                  <button id="ekyc-toggle" class="switch is-on" type="button" role="switch" aria-checked="true"><span></span></button>
+                </div>
+
+                <div class="toggle-line">
+                  <div>
+                    <span class="field-label">Monthly policy</span>
+                    <span class="field-help">Requires a reusable payment source.</span>
+                  </div>
+                  <button id="monthly-toggle" class="switch is-on" type="button" role="switch" aria-checked="true"><span></span></button>
+                </div>
+
+                <div class="toggle-line webhook-line">
+                  <div>
+                    <span class="field-label">Webhooks globally enabled</span>
+                    <span class="field-help">Omits callback URLs when disabled.</span>
+                  </div>
+                  <button id="webhook-toggle" class="switch is-on" type="button" role="switch" aria-checked="true"><span></span></button>
+                </div>
+
+                <div class="toggle-line">
+                  <div>
+                    <span class="field-label">Koza Furikae registration + batches</span>
+                    <span class="field-help">Enables combined Checkout registration and scheduled 口座振替（セレクト） requests in MIT.</span>
+                  </div>
+                  <button id="koza-batch-toggle" class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="Enable Koza Furikae registration and monthly batches"><span></span></button>
+                </div>
+
+                <div class="toggle-line">
+                  <div>
+                    <span class="field-label">Koza async notifications</span>
+                    <span class="field-help">Applies later debit results received through the protocol notification endpoint.</span>
+                  </div>
+                  <button id="koza-notification-toggle" class="switch is-on" type="button" role="switch" aria-checked="true" aria-label="Enable Koza asynchronous notifications"><span></span></button>
+                </div>
+              </div>
+            </section>
+
+            <section class="config-card" aria-labelledby="bank-products-title">
+              <div class="config-card-heading">
+                <div>
+                  <h3 id="bank-products-title">Bank debit products</h3>
+                  <p>Separate GMO products with separate commands, states, and operator flows.</p>
+                </div>
+              </div>
+              <div class="bank-product-comparison">
+                <article>
+                  <span class="product-kicker">Immediate</span>
+                  <h4>Real-time bank debit</h4>
+                  <p class="product-japanese">口座直結決済</p>
+                  <p>Register and debit in the current checkout or individual MIT request. A successful synchronous result can be treated as paid.</p>
+                  <code>bank_direct_realtime</code>
+                </article>
+                <article>
+                  <span class="product-kicker is-deferred">Monthly batch</span>
+                  <h4>Koza Furikae Select</h4>
+                  <p class="product-japanese">口座振替（セレクト）</p>
+                  <p>Checkout registers the future mandate and then issues Furikomi instructions for the first premium. MIT batches later monthly premiums and awaits asynchronous results.</p>
+                  <code>koza_furikae_select</code>
+                </article>
+              </div>
+            </section>
+
+            <section class="config-card theme-controls" aria-labelledby="theme-title">
+              <div class="config-card-heading">
+                <div>
+                  <h3 id="theme-title">Visual theme</h3>
+                  <p>Live preview tokens for the Angular checkout.</p>
+                </div>
+                <button id="reset-theme" class="text-button" type="button">Reset</button>
+              </div>
+
+              <div class="color-fields">
+                <label class="color-field" for="accent-color">
+                  <span>Primary</span>
+                  <input id="accent-color" type="color" value="#635bff" />
+                </label>
+                <label class="color-field" for="canvas-color">
+                  <span>Canvas</span>
+                  <input id="canvas-color" type="color" value="#f6f8fd" />
+                </label>
+              </div>
+
+              <label class="field-label" for="font-family">Body font</label>
+              <select id="font-family" class="select-control theme-select">
+                <option value="Avenir Next, Avenir, Segoe UI, sans-serif">Avenir Next</option>
+                <option value="Helvetica Neue, Helvetica, Arial, sans-serif">Helvetica Neue</option>
+                <option value="Optima, Avenir Next, sans-serif">Optima</option>
+                <option value="Trebuchet MS, Avenir Next, sans-serif">Trebuchet MS</option>
+              </select>
+
+              <label class="field-label" for="base-size">Base text size <output id="base-size-output">16 px</output></label>
+              <input id="base-size" class="range-control" type="range" min="14" max="20" value="16" />
+
+              <label class="field-label" for="heading-scale">Heading scale <output id="heading-scale-output">100%</output></label>
+              <input id="heading-scale" class="range-control" type="range" min="85" max="120" value="100" />
+            </section>
+
+            <section class="config-card integration-controls" aria-labelledby="integration-title">
+              <div class="config-card-heading">
+                <div>
+                  <h3 id="integration-title">Public integration addresses</h3>
+                  <p>Environment-specific values stay in local configuration or SQLite, never in the distributed source.</p>
+                </div>
+                <span id="integration-source" class="config-source">Generic default</span>
+              </div>
+
+              <div class="integration-fields">
+                <label class="config-field" for="public-base-url">
+                  <span class="field-label">Public base URL</span>
+                  <span class="field-help">Your HTTPS Cloudflare or deployment address.</span>
+                  <input id="public-base-url" class="text-control" type="url" value="https://payments.example.com" spellcheck="false" />
+                </label>
+                <label class="config-field" for="browser-return-base-url">
+                  <span class="field-label">Browser return base URL <span class="optional-label">Optional override</span></span>
+                  <span class="field-help">Used after PayPay or bank authorization.</span>
+                  <input id="browser-return-base-url" class="text-control" type="url" placeholder="Derived from the public base URL" spellcheck="false" />
+                </label>
+                <label class="config-field" for="openapi-webhook-url">
+                  <span class="field-label">OpenAPI webhook URL <span class="optional-label">Optional override</span></span>
+                  <span class="field-help">Leave empty to use the standard receiver path.</span>
+                  <input id="openapi-webhook-url" class="text-control" type="url" placeholder="Derived from the public base URL" spellcheck="false" />
+                </label>
+                <label class="config-field" for="protocol-notification-url">
+                  <span class="field-label">Protocol notification URL <span class="optional-label">Optional override</span></span>
+                  <span class="field-help">Used for protocol-style GMO notifications.</span>
+                  <input id="protocol-notification-url" class="text-control" type="url" placeholder="Derived from the public base URL" spellcheck="false" />
+                </label>
+              </div>
+
+              <div id="resolved-integration-urls" class="resolved-urls" aria-live="polite"></div>
+              <p class="local-config-note">Prototype values are saved only in this browser. The application build will also support a gitignored local file, SQLite, and locked environment overrides.</p>
+            </section>
+
+            <section class="config-card ordering" aria-labelledby="method-config-title">
+              <div class="config-card-heading">
+                <div>
+                  <h3 id="method-config-title">Payment methods</h3>
+                  <p>Control visibility and customer-facing order.</p>
+                </div>
+                <button id="reset-order" class="text-button" type="button">Reset</button>
+              </div>
+              <ol id="method-order" class="order-list"></ol>
+            </section>
+          </div>
+        </aside>
+
+        <section id="operations-panel" class="operations-panel is-hidden" role="tabpanel" aria-labelledby="operations-view-tab">
+          <div class="prototype-notice"><span>Prototype data</span> Actions complete in this browser and append to the transaction thread; no GMO calls are made.</div>
+          <header class="operations-header">
+            <div>
+              <p class="eyebrow">Payment operations</p>
+              <h1>Transactions and reconciliation</h1>
+              <p>One payment per row, with its complete API, webhook, inquiry, retry, and SFTP history kept together.</p>
+            </div>
+            <div class="operator-controls">
+              <label class="timezone-control" for="operations-role">
+                <span>Viewing as</span>
+                <select id="operations-role">
+                  <option value="operator">Payment operator</option>
+                  <option value="admin">Configuration administrator</option>
+                  <option value="auditor">Read-only auditor</option>
+                </select>
+              </label>
+              <label class="timezone-control" for="operations-timezone">
+                <span>Display time</span>
+                <select id="operations-timezone"></select>
+              </label>
+            </div>
+          </header>
+          <nav class="operations-subnav" aria-label="API and webhook views">
+            <button class="is-selected" type="button" data-operations-section="transactions">Transactions</button>
+            <button type="button" data-operations-section="webhooks">Webhook setup</button>
+            <button type="button" data-operations-section="sftp">SFTP imports</button>
+          </nav>
+          <div id="operations-content"></div>
+        </section>
+
+        <section id="mit-panel" class="operations-panel is-hidden" role="tabpanel" aria-labelledby="mit-view-tab">
+          <div class="prototype-notice"><span>Prototype data</span> Charge and account actions are simulated end to end; no GMO calls are made.</div>
+          <header class="operations-header">
+            <div>
+              <p class="eyebrow">Merchant-initiated payments</p>
+              <h1>Run recurring payments</h1>
+              <p>Charge an individual saved method or prepare a monthly Koza Furikae batch. No sensitive account data is exposed here.</p>
+            </div>
+            <label class="timezone-control" for="mit-role">
+              <span>Viewing as</span>
+              <select id="mit-role">
+                <option value="operator">Payment operator</option>
+                <option value="admin">Configuration administrator</option>
+                <option value="auditor">Read-only auditor</option>
+              </select>
+            </label>
+          </header>
+          <div id="mit-content"></div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="prototype-action-dialog" class="prototype-dialog" aria-labelledby="prototype-dialog-title">
+      <button class="dialog-close" type="button" data-dialog-close aria-label="Close">&times;</button>
+      <p id="prototype-dialog-eyebrow" class="eyebrow">Review action</p>
+      <h2 id="prototype-dialog-title">Review action</h2>
+      <div id="prototype-dialog-content"></div>
+      <div class="dialog-actions">
+        <span id="prototype-dialog-note">Review the details before continuing.</span>
+        <div class="dialog-buttons">
+          <button id="prototype-dialog-cancel" class="secondary-button" type="button" data-dialog-close>Cancel</button>
+          <button id="prototype-dialog-confirm" class="primary-button" type="button" data-dialog-confirm hidden>Confirm</button>
+        </div>
+      </div>
+    </dialog>
+
+    <script src="app.js?v=20260901-28"></script>
+    <script src="ops-mock.js?v=20260901-28"></script>
+  </body>
+</html>
