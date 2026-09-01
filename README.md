@@ -6,11 +6,68 @@ This repository is the build workspace for a modular insurance-payment reference
 
 - UX baseline: approved and locked
 - Baseline version: `20260901-28`
-- Production application: not scaffolded yet
+- Build milestone: first runnable vertical slice implemented
+- Backend: Java 21 / Spring Boot 4.1.1 modular Maven reactor
+- Frontend: Angular 22.1 standalone application with four lazy-loaded routes
+- Persistence: Flyway-managed SQLite configuration baseline with WAL and busy timeout
 - Live GMO calls: not enabled
 - Public GitHub repository: `patelsa032766/gmo-payments-reference`
 
 The approved mock is independently runnable from [`ui-mock`](./ui-mock/README.md). Application code must be added beside that directory rather than replacing it. Any future UX proposal must use a new mock version and must not silently rewrite the approved baseline.
+
+## Run the application locally
+
+Prerequisites are JDK 21 and Node.js 24. The Maven version is pinned by the checked-in wrapper; npm installs the Angular toolchain from `package-lock.json`.
+
+Start the backend in terminal one:
+
+```bash
+cd backend
+./mvnw test
+./mvnw -pl bootstrap -am install -DskipTests
+./mvnw -pl bootstrap spring-boot:run
+```
+
+If macOS cannot locate a Homebrew JDK automatically, set it for that terminal first:
+
+```bash
+export JAVA_HOME=/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+export PATH=/usr/local/opt/openjdk@21/bin:$PATH
+```
+
+Start Angular in terminal two:
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+Open `http://127.0.0.1:4200`. Angular proxies `/api` and `/actuator` to Spring Boot on port `8080`. Useful direct checks are:
+
+```bash
+curl http://127.0.0.1:8080/actuator/health
+curl 'http://127.0.0.1:8080/api/v1/checkout/options?channel=PA&amountJpy=10000&monthly=true&ekycVerified=true&language=en'
+```
+
+To run the frontend checks:
+
+```bash
+cd frontend
+npm test -- --watch=false
+npm run build
+```
+
+### What works in this slice
+
+- Spring Boot starts, Flyway creates the SQLite schema, and Actuator reports health.
+- The published configuration release contains enabled state, recurring eligibility, channel coverage, amount thresholds, localized labels, and display order.
+- `GET /api/v1/checkout/options` applies those rules server-side; Angular renders only the returned methods.
+- `GET /api/v1/configuration/active` feeds the Configuration route.
+- Checkout supports method selection and a non-financial confirmation step.
+- API & Webhooks and MIT reproduce the approved operator layout but are explicitly non-executing until their command/event slices are implemented.
+
+No button in this milestone sends a GMO request or financial transaction.
 
 ## Approved workspaces
 
@@ -32,7 +89,7 @@ The approved mock is independently runnable from [`ui-mock`](./ui-mock/README.md
 - A customer has exactly one Primary stored method and optionally one distinct Backup. The latest successfully registered method becomes Primary by default; execution fallback behavior is deferred.
 - Refunds, chargebacks, disputes, notifications, inquiries, and reconciliation evidence remain linked to the original durable transaction thread.
 
-## Planned source layout
+## Source layout
 
 ```text
 frontend/                       Angular customer and operator application
@@ -48,7 +105,9 @@ docs/                           Architecture and build decisions
 ui-mock/                        Locked static UX baseline
 ```
 
-See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for system boundaries and [`docs/BUILD_HANDOFF.md`](./docs/BUILD_HANDOFF.md) for the implementation sequence and acceptance gates.
+The first four backend modules plus `bootstrap` now exist. `adapter-gmo` and `adapter-sftp` remain intentional future modules so no simulated behavior can be mistaken for a live integration. Dependencies point inward: adapters depend on application ports, and the domain has no Spring or provider dependency.
+
+See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for system boundaries, [`docs/DATABASE.md`](./docs/DATABASE.md) for SQLite ownership and lock rules, [`docs/API.md`](./docs/API.md) for the current contract, and [`docs/BUILD_HANDOFF.md`](./docs/BUILD_HANDOFF.md) for the implementation sequence and acceptance gates.
 
 ## Configuration precedence
 

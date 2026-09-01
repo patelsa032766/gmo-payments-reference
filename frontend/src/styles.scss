@@ -1,0 +1,13 @@
+:root {
+  --ink: #30313d; --muted: #697386; --line: #e6e8eb; --canvas: #f6f9fc;
+  --surface: #fff; --violet: #635bff; --violet-dark: #4f46d8;
+  --violet-pale: #f0efff; --green: #087a67; --green-pale: #e0f4ee;
+  --orange: #bf5c12; --orange-pale: #fff0e1;
+  color-scheme: light; font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html { min-width: 320px; background: var(--canvas); }
+body { margin: 0; background: var(--canvas); color: var(--ink); font-size: 16px; line-height: 1.45; }
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+strong, b, h1, h2, h3 { font-weight: 500; }

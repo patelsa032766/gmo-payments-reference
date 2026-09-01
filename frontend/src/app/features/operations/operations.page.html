@@ -1,0 +1,25 @@
+<section class="panel">
+  <div class="intro"><div><p class="eyebrow">Payment operations</p><h1>Transactions and reconciliation</h1>
+    <p>One payment thread will keep every API call, webhook, inquiry, retry, refund, chargeback, and SFTP result linked.</p></div><span>Foundation slice</span></div>
+  <nav class="subnav" aria-label="Operations views"><button class="active">Transactions</button><button>Webhook setup</button><button>SFTP imports</button></nav>
+  <div class="filters"><input aria-label="Search transactions" placeholder="Search customer, application, transaction…"><select aria-label="Status"><option>All statuses</option></select><select aria-label="Method"><option>All methods</option></select></div>
+  <div class="workspace">
+    <ol class="timeline" aria-label="Example transaction timeline">
+      <li class="active"><span></span><div><small>Payment created</small><strong>Checkout request accepted</strong><time>10:18:42 · Tokyo</time></div></li>
+      <li><span></span><div><small>GMO API</small><strong>Authorization requested</strong><time>10:18:43 · Tokyo</time></div></li>
+      <li><span></span><div><small>Response</small><strong>Authorized</strong><time>10:18:44 · Tokyo</time></div></li>
+    </ol>
+    <section class="exchange"><p class="eyebrow">Selected event</p><h2>Outbound request</h2>
+      <pre>POST /payment/authorize
+Idempotency-Key: ••••9584
+{{ '{' }}
+  "amount": 10000,
+  "currency": "JPY"
+{{ '}' }}</pre>
+      <h2>Inbound response</h2><pre class="response">HTTP 200
+{{ '{' }}
+  "status": "AUTHORIZED"
+{{ '}' }}</pre>
+    </section>
+  </div>
+</section>

@@ -1,0 +1,26 @@
+<section class="panel">
+  <div class="panel-heading">
+    <div><p class="eyebrow">Checkout policy</p><h1>Payment method configuration</h1>
+      <p>Published rules determine which payment methods the customer can see. Draft editing and audited publishing will follow in the next build slice.</p></div>
+    @if (configuration(); as config) { <span class="release">Published · v{{ config.version }}</span> }
+  </div>
+  @if (configuration(); as config) {
+    <div class="release-meta"><span>Published {{ config.publishedAt }}</span><span>By {{ config.publishedBy }}</span></div>
+    <div class="method-table" role="table" aria-label="Published payment methods">
+      <div class="table-header" role="row"><span>Method</span><span>Status</span><span>Use</span><span>JPY threshold</span><span>Order</span></div>
+      @for (method of config.methods; track method.code) {
+        <div class="method-row" role="row">
+          <span class="method-name">{{ method.code }}</span>
+          <span><span class="status" [class.is-off]="!method.enabled">{{ method.enabled ? 'Enabled' : 'Disabled' }}</span></span>
+          <span>{{ method.recurring ? 'Recurring' : 'One-time' }}</span>
+          <span>{{ method.minimumAmountJpy.toLocaleString() }}–{{ method.maximumAmountJpy.toLocaleString() }}</span>
+          <span>{{ method.displayOrder }}</span>
+        </div>
+      }
+    </div>
+  } @else if (failed()) {
+    <div class="empty" role="alert">The active configuration could not be loaded.</div>
+  } @else {
+    <div class="empty" role="status">Loading published configuration…</div>
+  }
+</section>

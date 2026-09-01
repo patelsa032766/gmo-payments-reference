@@ -1,0 +1,16 @@
+<div class="page-shell">
+  <header class="topbar">
+    <a class="brand" routerLink="/checkout" aria-label="GMO Checkout home">
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span>gmo<span>Checkout</span></span>
+    </a>
+    <nav class="workspace-tabs" aria-label="Application areas">
+      <a routerLink="/checkout" routerLinkActive="is-selected">Checkout</a>
+      <a routerLink="/configuration" routerLinkActive="is-selected">Configuration</a>
+      <a routerLink="/operations" routerLinkActive="is-selected">API &amp; Webhooks</a>
+      <a routerLink="/mit" routerLinkActive="is-selected">MIT Transactions</a>
+    </nav>
+    <div class="secure-status"><span aria-hidden="true">&#128274;</span> Secure checkout</div>
+  </header>
+  <main><router-outlet /></main>
+</div>

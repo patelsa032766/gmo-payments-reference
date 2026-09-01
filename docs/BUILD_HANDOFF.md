@@ -1,6 +1,21 @@
 # Build Handoff
 
-Status: ready to begin implementation from approved mock baseline `20260901-28`.
+Status: implementation started from approved mock baseline `20260901-28`; foundation vertical slice complete.
+
+## Implemented foundation (1 September 2026)
+
+- Java 21 / Spring Boot 4.1.1 multi-module build with a pinned Maven wrapper
+- Provider-independent method and configuration domain records
+- Pure application eligibility service and unit tests
+- Flyway SQLite migration for published configuration and method rules
+- SQLite JDBC settings for WAL, foreign keys, bounded busy waiting, and a bounded lock-retry helper
+- Versioned Checkout and active-configuration REST endpoints with Problem Details errors
+- Angular 22.1 shell with separate Checkout, Configuration, API & Webhooks, and MIT routes
+- API-connected Checkout and Configuration pages
+- Responsive operator-shaped foundation pages for transaction timelines and MIT
+- Passing backend tests, Angular tests, and Angular production build
+
+No live GMO, webhook, SFTP, or financial command is present in this foundation slice.
 
 ## Non-negotiable baseline
 

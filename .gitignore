@@ -18,6 +18,8 @@ application-local.yaml
 *.sqlite
 *.sqlite3
 runtime/
+!backend/bootstrap/runtime/
+!backend/bootstrap/runtime/.gitkeep
 data/
 imports/
 exports/
@@ -28,6 +30,7 @@ target/
 build/
 .gradle/
 node_modules/
+.tooling/
 dist/
 .angular/
 coverage/

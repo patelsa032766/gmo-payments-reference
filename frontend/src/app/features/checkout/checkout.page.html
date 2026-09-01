@@ -1,0 +1,65 @@
+<section class="checkout-layout">
+  <article class="customer-flow">
+    <div class="progress" aria-label="Checkout progress">
+      <span class="progress-item" [class.is-active]="!confirmed()"><b>1</b>Payment</span>
+      <span class="progress-line"></span>
+      <span class="progress-item" [class.is-active]="confirmed()"><b>2</b>Confirmation</span>
+    </div>
+
+    <section class="application-card" aria-label="Application summary">
+      <div><span>Application</span><strong>APP-20260821-001</strong></div>
+      <div><span>Policy</span><strong>Annuity</strong></div>
+      <div><span>Due today</span><strong>{{ amountJpy | currency:'JPY':'code':'1.0-0' }}</strong></div>
+      <div><span>Payment plan</span><strong>Monthly policy</strong></div>
+    </section>
+
+    @if (!confirmed()) {
+      <section aria-labelledby="method-title">
+        <p class="eyebrow">Payment method</p>
+        <h1 id="method-title">Choose a payment method</h1>
+
+        @if (loading()) {
+          <div class="loading-state" role="status">Loading available payment methods…</div>
+        } @else {
+          <div class="method-list">
+            @for (method of methods(); track method.code) {
+              <button class="method-card" type="button"
+                      [class.is-selected]="selectedCode() === method.code"
+                      [attr.aria-pressed]="selectedCode() === method.code"
+                      (click)="select(method.code)">
+                <span class="selection-circle" aria-hidden="true"></span>
+                <span class="method-icon" [class.is-paypay]="method.code === 'paypay'">{{ methodMonogram(method) }}</span>
+                <span class="method-main">
+                  <span class="method-title">{{ method.label }}</span>
+                  <span class="method-description">{{ method.description }}</span>
+                  @if (method.recurring) { <span class="method-badge">Available for future monthly payments</span> }
+                </span>
+                <span class="chevron" aria-hidden="true">›</span>
+              </button>
+            } @empty {
+              <div class="loading-state">No payment methods are available for this application.</div>
+            }
+          </div>
+        }
+
+        @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+        <div class="actions"><button class="primary-button" type="button" [disabled]="loading()" (click)="continue()">Continue <span>→</span></button></div>
+      </section>
+    } @else {
+      <section class="confirmation" aria-labelledby="confirmation-title">
+        <div class="confirmation-hero">
+          <span class="confirmation-check" aria-hidden="true">✓</span>
+          <div><p class="eyebrow">Confirmation</p><h1 id="confirmation-title">Payment method selected.</h1>
+            <p>Your payment journey is ready to continue through {{ selectedMethod()?.label }}.</p></div>
+        </div>
+        <dl>
+          <div><dt>Application</dt><dd>APP-20260821-001</dd></div>
+          <div><dt>Payment method</dt><dd>{{ selectedMethod()?.label }}</dd></div>
+          <div><dt>Amount</dt><dd>{{ amountJpy | currency:'JPY':'code':'1.0-0' }}</dd></div>
+          <div><dt>Configuration</dt><dd>Version {{ configurationVersion() }}</dd></div>
+        </dl>
+        <div class="actions"><button class="secondary-button" type="button" (click)="startAgain()">Choose another method</button></div>
+      </section>
+    }
+  </article>
+</section>
