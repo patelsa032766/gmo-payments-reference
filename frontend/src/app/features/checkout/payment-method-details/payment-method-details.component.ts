@@ -1,5 +1,6 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { PaymentMethodOption } from '../../../core/api/checkout-api.service';
 
 interface MethodPresentation {
@@ -47,7 +48,7 @@ const PRESENTATION: Record<string, MethodPresentation> = {
  */
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgTemplateOutlet],
+  imports: [NgTemplateOutlet, FormsModule],
   selector: 'app-payment-method-details',
   styleUrl: './payment-method-details.component.scss',
   templateUrl: './payment-method-details.component.html',
@@ -55,10 +56,16 @@ const PRESENTATION: Record<string, MethodPresentation> = {
 export class PaymentMethodDetailsComponent {
   readonly method = input.required<PaymentMethodOption>();
   readonly amountJpy = input.required<number>();
+  readonly detailsChange = output<Record<string, unknown>>();
 
   protected readonly deliveryOptions = ['EMAIL', 'LINE', 'SMS'] as const;
   protected readonly delivery = signal<'EMAIL' | 'LINE' | 'SMS'>('EMAIL');
   protected readonly instructionsIssued = signal(false);
+  protected readonly details: Record<string, unknown> = {
+    cardNumber: '', expiry: '', securityCode: '', holderName: '', authorizationMode: 'AUTH',
+    bankCode: '0001', branchCode: '', accountType: '1', accountNumber: '',
+    accountNameKana: '', accountNameKanji: '', nameKana: '', email: '', phone: '', konbiniCode: 'LAWSON',
+  };
   protected readonly presentation = computed(() => PRESENTATION[this.method().code] ?? {
     title: this.method().label,
     description: this.method().description,
@@ -66,11 +73,24 @@ export class PaymentMethodDetailsComponent {
     note: 'Continue to complete this payment method.',
   });
 
+  constructor() {
+    // Emit defaults each time Angular creates a newly selected accordion body;
+    // a customer should not have to touch an already-correct select value.
+    effect(() => {
+      this.method();
+      queueMicrotask(() => this.changed());
+    });
+  }
+
   protected chooseDelivery(delivery: 'EMAIL' | 'LINE' | 'SMS'): void {
     this.delivery.set(delivery);
   }
 
   protected issueInstructions(): void {
     this.instructionsIssued.set(true);
+  }
+
+  protected changed(): void {
+    this.detailsChange.emit({ ...this.details });
   }
 }

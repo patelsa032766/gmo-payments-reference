@@ -1,4 +1,8 @@
 .panel { width: min(100%,960px); margin: 0 auto; padding: 28px; border: 1px solid var(--line); border-radius: 16px; background: white; box-shadow: 0 8px 20px rgba(50,50,93,.06); }
+header { display:flex;justify-content:space-between;gap:24px;align-items:flex-start }
+.token{min-width:210px}.token input{margin-top:5px}
+.subnav{display:flex;gap:24px;margin:20px 0 18px;border-bottom:1px solid var(--line)}.subnav button{padding:10px 1px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font-size:.74rem}.subnav button.active{border-color:var(--violet);color:var(--ink)}
+.product-note{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:8px;background:var(--violet-pale)}.product-note>span{white-space:nowrap;color:var(--violet-dark);font-size:.64rem}.product-note p{margin:0;color:var(--muted);font-size:.68rem}
 .notice { margin-bottom: 22px; padding-bottom: 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .72rem; }
 .notice span { margin-right: 8px; padding: 5px 8px; border-radius: 999px; background: var(--orange-pale); color: var(--orange); }
 .eyebrow { margin: 0 0 7px; color: var(--violet); font-size: .68rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
@@ -9,10 +13,14 @@ form { display: grid; gap: 12px; }
 label { display: grid; gap: 5px; color: var(--muted); font-size: .7rem; }
 input, select { width: 100%; min-width: 0; padding: 10px 11px; border: 1px solid #cfd5df; border-radius: 7px; background: white; color: var(--ink); font-size: .78rem; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-form button { width: fit-content; min-width: 150px; margin-top: 4px; padding: 12px 16px; border: 0; border-radius: 6px; background: var(--violet); color: white; opacity: .45; }
+form button { width: fit-content; min-width: 150px; margin-top: 4px; padding: 12px 16px; border: 0; border-radius: 6px; background: var(--violet); color: white; }
+button:disabled{cursor:not-allowed;opacity:.45}
 aside { padding-left: 24px; border-left: 1px solid var(--line); }
 aside dl { margin: 20px 0 0; }
 aside dl div { display: flex; justify-content: space-between; gap: 15px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 dt { color: var(--muted); font-size: .68rem; } dd { margin: 0; font-size: .75rem; text-align: right; }
 dd span { padding: 4px 8px; border-radius: 999px; background: var(--green-pale); color: var(--green); }
+.preferences{margin-top:20px;padding-top:15px;border-top:1px solid var(--line)}.preferences h3{margin:0 0 10px;font-size:.78rem}.preferences label{margin-top:8px}.preferences .secondary{min-width:0;margin-top:10px;padding:8px 10px;border:1px solid #cfd5df;border-radius:6px;background:#fff;color:var(--ink);font-size:.68rem}
+.koza{display:grid;gap:16px}.koza h2{font-size:1.1rem}.koza>div>p:last-child,.batch-note{margin:0;color:var(--muted);font-size:.74rem}.schedule{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:9px}.schedule div{padding:12px}.schedule div+div{border-left:1px solid var(--line)}.schedule span,.schedule strong{display:block}.schedule span{color:var(--muted);font-size:.61rem}.schedule strong{margin-top:3px;font-size:.72rem}.koza-table{border-block:1px solid var(--line)}.koza-table>div{display:grid;grid-template-columns:1fr 1.25fr .7fr .6fr;gap:12px;padding:10px;border-top:1px solid #edf0f5;font-size:.71rem}.koza-table .koza-head{border-top:0;color:var(--muted);font-size:.61rem}.koza-table small{display:block;color:var(--muted);font-size:.6rem}.koza-table i{padding:3px 7px;border-radius:999px;background:var(--green-pale);color:var(--green);font-size:.61rem;font-style:normal}.message{margin:16px 0 0;padding:10px 12px;border-radius:8px;background:var(--violet-pale);color:var(--violet-dark);font-size:.72rem}
+.batch-actions{display:flex;justify-content:space-between;align-items:center;gap:16px}.batch-actions span{color:var(--muted);font-size:.68rem}.batch-actions button{padding:10px 14px;border:0;border-radius:6px;background:var(--violet);color:#fff;font-size:.72rem}
 @media (max-width: 700px) { .panel { padding: 22px 18px; } .layout { grid-template-columns: 1fr; } aside { padding: 20px 0 0; border-left: 0; border-top: 1px solid var(--line); } .two { grid-template-columns: 1fr; } }

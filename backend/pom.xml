@@ -21,6 +21,7 @@
   <modules>
     <module>domain</module>
     <module>application</module>
+    <module>adapter-gmo</module>
     <module>adapter-persistence</module>
     <module>adapter-web</module>
     <module>bootstrap</module>

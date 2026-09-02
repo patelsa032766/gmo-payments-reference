@@ -20,6 +20,11 @@ describe('CheckoutPage', () => {
               displayOrder: 1,
             }],
           }),
+          getBrowserConfiguration: () => of({
+            liveCallsEnabled: false, webhooksEnabled: false,
+            mpTokenJsUrl: '', shopId: '', publicBaseUrl: 'http://localhost:8080',
+            openapiWebhookUrl: null, protocolNotificationUrl: null,
+          }),
         },
       }],
     }).compileComponents();

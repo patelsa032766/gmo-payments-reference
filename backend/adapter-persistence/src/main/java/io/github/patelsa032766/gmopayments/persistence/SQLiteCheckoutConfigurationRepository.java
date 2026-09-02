@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Set;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -30,20 +31,26 @@ public class SQLiteCheckoutConfigurationRepository implements CheckoutConfigurat
 
     @Override
     public ConfigurationRelease findActiveRelease() {
+        return findRelease("PUBLISHED").orElseThrow(() -> new IllegalStateException("No published checkout configuration exists"));
+    }
+
+    public Optional<ConfigurationRelease> findDraftRelease() { return findRelease("DRAFT"); }
+
+    private Optional<ConfigurationRelease> findRelease(String status) {
         var release = jdbc.sql("""
                         SELECT id, version, published_at, published_by
                         FROM configuration_release
-                        WHERE status = 'PUBLISHED'
+                        WHERE status = :status
                         ORDER BY version DESC
                         LIMIT 1
-                        """)
+                        """).param("status", status)
                 .query((rs, rowNum) -> new ReleaseRow(
                         rs.getLong("id"),
                         rs.getInt("version"),
-                        Instant.parse(rs.getString("published_at")),
+                        rs.getString("published_at") == null ? null : Instant.parse(rs.getString("published_at")),
                         rs.getString("published_by")))
-                .optional()
-                .orElseThrow(() -> new IllegalStateException("No published checkout configuration exists"));
+                .optional();
+        if (release.isEmpty()) return Optional.empty();
 
         var methods = jdbc.sql("""
                         SELECT code, label_en, description_en, label_ja, description_ja,
@@ -53,7 +60,7 @@ public class SQLiteCheckoutConfigurationRepository implements CheckoutConfigurat
                         WHERE release_id = :releaseId
                         ORDER BY display_order
                         """)
-                .param("releaseId", release.id())
+                .param("releaseId", release.get().id())
                 .query((rs, rowNum) -> new PaymentMethodConfiguration(
                         PaymentMethodCode.fromApiValue(rs.getString("code")),
                         rs.getString("label_en"),
@@ -70,8 +77,8 @@ public class SQLiteCheckoutConfigurationRepository implements CheckoutConfigurat
                         rs.getInt("display_order")))
                 .list();
 
-        return new ConfigurationRelease(
-                release.id(), release.version(), release.publishedAt(), release.publishedBy(), methods);
+        var row=release.get();
+        return Optional.of(new ConfigurationRelease(row.id(), row.version(), row.publishedAt(), row.publishedBy(), methods));
     }
 
     private static Long nullableLong(java.sql.ResultSet resultSet, String column) throws java.sql.SQLException {

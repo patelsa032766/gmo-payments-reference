@@ -40,7 +40,7 @@
                 </button>
 
                 @if (selectedCode() === method.code) {
-                  <app-payment-method-details [method]="method" [amountJpy]="amountJpy" />
+                  <app-payment-method-details [method]="method" [amountJpy]="amountJpy" (detailsChange)="updateDetails($event)" />
                 }
               </article>
             } @empty {
@@ -50,21 +50,26 @@
         }
 
         @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
-        <div class="actions"><button class="primary-button" type="button" [disabled]="loading()" (click)="continue()">Continue <span>→</span></button></div>
+        <div class="actions"><button class="primary-button" type="button" [disabled]="loading() || submitting()" (click)="continue()">{{ submitting() ? 'Processing…' : 'Continue' }} <span>→</span></button></div>
       </section>
     } @else {
       <section class="confirmation" aria-labelledby="confirmation-title">
         <div class="confirmation-hero">
           <span class="confirmation-check" aria-hidden="true">✓</span>
-          <div><p class="eyebrow">Confirmation</p><h1 id="confirmation-title">Payment method selected.</h1>
-            <p>Your payment journey is ready to continue through {{ selectedMethod()?.label }}.</p></div>
+          <div><p class="eyebrow">Confirmation</p><h1 id="confirmation-title">{{ submission()?.state === 'INSTRUCTIONS_ISSUED' || submission()?.state === 'MANDATE_REGISTERED_TRANSFER_DUE' ? 'Payment instructions ready.' : 'Payment successful.' }}</h1>
+            <p>{{ submission()?.state === 'MANDATE_REGISTERED_TRANSFER_DUE' ? 'Koza Furikae is registered for monthly premiums. Use the bank-transfer instructions below for the first premium.' : 'Your first payment step completed successfully.' }}</p></div>
         </div>
         <dl>
           <div><dt>Application</dt><dd>APP-20260821-001</dd></div>
           <div><dt>Payment method</dt><dd>{{ selectedMethod()?.label }}</dd></div>
           <div><dt>Amount</dt><dd>{{ amountJpy | currency:'JPY':'code':'1.0-0' }}</dd></div>
-          <div><dt>Configuration</dt><dd>Version {{ configurationVersion() }}</dd></div>
+          <div><dt>Reference</dt><dd>{{ submission()?.transactionId }}</dd></div>
         </dl>
+        @if (submission()?.instructions; as instructions) {
+          @if (instructions['bank']) {
+            <dl><div><dt>Bank</dt><dd>{{ instructions['bank'] }}</dd></div><div><dt>Branch</dt><dd>{{ instructions['branch'] }}</dd></div><div><dt>Account</dt><dd>{{ instructions['accountNumber'] }}</dd></div><div><dt>Deadline</dt><dd>{{ instructions['deadline'] }}</dd></div></dl>
+          }
+        }
         <div class="actions"><button class="secondary-button" type="button" (click)="startAgain()">Choose another method</button></div>
       </section>
     }

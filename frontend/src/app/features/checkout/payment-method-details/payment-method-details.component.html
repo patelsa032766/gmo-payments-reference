@@ -7,12 +7,12 @@
   @switch (method().code) {
     @case ('card') {
       <div class="gmo-card-form" aria-label="Secure card field layout">
-        <label class="field field-wide"><span>Card number</span><span class="gmo-element-slot" role="group" aria-label="GMO-hosted card number field"><span aria-hidden="true">🔒</span> 1234 1234 1234 1234</span></label>
-        <label class="field"><span>Expiry</span><span class="gmo-element-slot" role="group" aria-label="GMO-hosted expiry field">MM / YY</span></label>
-        <label class="field"><span>Security code</span><span class="gmo-element-slot" role="group" aria-label="GMO-hosted security code field">CVC</span></label>
-        <label class="field field-wide" for="cardholder-name"><span>Cardholder name</span><input id="cardholder-name" type="text" autocomplete="cc-name" placeholder="Name on card" /></label>
+        <label class="field field-wide"><span>Card number</span><input name="cardNumber" [(ngModel)]="details['cardNumber']" (ngModelChange)="changed()" inputmode="numeric" autocomplete="cc-number" placeholder="1234 1234 1234 1234" /></label>
+        <label class="field"><span>Expiry</span><input name="expiry" [(ngModel)]="details['expiry']" (ngModelChange)="changed()" inputmode="numeric" autocomplete="cc-exp" placeholder="MM / YY" /></label>
+        <label class="field"><span>Security code</span><input name="securityCode" [(ngModel)]="details['securityCode']" (ngModelChange)="changed()" inputmode="numeric" autocomplete="cc-csc" placeholder="CVC" /></label>
+        <label class="field field-wide" for="cardholder-name"><span>Cardholder name</span><input id="cardholder-name" name="holderName" [(ngModel)]="details['holderName']" (ngModelChange)="changed()" type="text" autocomplete="cc-name" placeholder="Name on card" /></label>
       </div>
-      <p class="integration-note">The outlined secure slots are mount points for GMO-hosted fields; Angular never receives PAN or CVC.</p>
+      <p class="integration-note">On Continue, GMO's browser library exchanges these details directly for a one-use token. PAN and CVC are never sent to this application's backend.</p>
     }
     @case ('paypay') {
       <div class="handoff-summary"><div><span>Payment today</span><strong>JPY {{ amountJpy().toLocaleString() }}</strong></div><div><span>Next step</span><strong>PayPay approval</strong></div></div>
@@ -20,10 +20,10 @@
     }
     @case ('bankDirect') {
       <div class="compact-fields" aria-label="Real-time bank debit setup">
-        <label class="field"><span>Bank</span><select><option>Mizuho Bank</option><option>Mitsubishi UFJ Bank</option><option>Sumitomo Mitsui Banking Corporation</option></select></label>
-        <label class="field"><span>Account type</span><select><option>Ordinary</option><option>Current</option></select></label>
-        <label class="field"><span>Account number</span><input inputmode="numeric" autocomplete="off" placeholder="1234567" /></label>
-        <label class="field"><span>Account holder name</span><input autocomplete="name" placeholder="Account holder name" /></label>
+        <label class="field"><span>Bank</span><select name="rtBank" [(ngModel)]="details['bankCode']" (ngModelChange)="changed()"><option value="0001">Mizuho Bank</option><option value="0005">Mitsubishi UFJ Bank</option><option value="0009">Sumitomo Mitsui Banking Corporation</option></select></label>
+        <label class="field"><span>Account type</span><select name="rtType" [(ngModel)]="details['accountType']" (ngModelChange)="changed()"><option value="1">Ordinary</option><option value="2">Current</option></select></label>
+        <label class="field"><span>Account number</span><input name="rtNumber" [(ngModel)]="details['accountNumber']" (ngModelChange)="changed()" inputmode="numeric" autocomplete="off" placeholder="1234567" /></label>
+        <label class="field"><span>Account holder name (Kana)</span><input name="rtName" [(ngModel)]="details['accountNameKana']" (ngModelChange)="changed()" autocomplete="off" placeholder="タナカ アイコ" /></label>
       </div>
       <div class="method-route"><span class="route-step">1</span><p>Complete bank registration. On return, today’s payment is debited immediately.</p></div>
     }
@@ -34,23 +34,23 @@
         <div><span class="flow-number">2</span><p><small>First premium</small>Receive a separate Furikomi virtual account.</p></div>
       </div>
       <div class="compact-fields">
-        <label class="field"><span>Bank</span><select><option>Mitsubishi UFJ Bank</option><option>Sumitomo Mitsui Banking Corporation</option><option>Mizuho Bank</option></select></label>
-        <label class="field"><span>Branch</span><input placeholder="Tokyo Central / 001" /></label>
-        <label class="field"><span>Account type</span><select><option>Ordinary</option><option>Current</option></select></label>
-        <label class="field"><span>Account number</span><input inputmode="numeric" autocomplete="off" placeholder="1234567" /></label>
-        <label class="field field-wide"><span>Account holder name</span><input autocomplete="name" placeholder="Account holder name" /></label>
+        <label class="field"><span>Bank</span><select name="kozaBank" [(ngModel)]="details['bankCode']" (ngModelChange)="changed()"><option value="0005">Mitsubishi UFJ Bank</option><option value="0009">Sumitomo Mitsui Banking Corporation</option><option value="0001">Mizuho Bank</option></select></label>
+        <label class="field"><span>Branch code</span><input name="kozaBranch" [(ngModel)]="details['branchCode']" (ngModelChange)="changed()" inputmode="numeric" placeholder="001" /></label>
+        <label class="field"><span>Account type</span><select name="kozaType" [(ngModel)]="details['accountType']" (ngModelChange)="changed()"><option value="1">Ordinary</option><option value="2">Current</option></select></label>
+        <label class="field"><span>Account number</span><input name="kozaNumber" [(ngModel)]="details['accountNumber']" (ngModelChange)="changed()" inputmode="numeric" autocomplete="off" placeholder="1234567" /></label>
+        <label class="field field-wide"><span>Account holder name (Kana)</span><input name="kozaName" [(ngModel)]="details['accountNameKana']" (ngModelChange)="changed()" autocomplete="off" placeholder="タナカ アイコ" /></label>
       </div>
     }
     @case ('kombini') {
-      <div class="compact-fields"><label class="field"><span>Convenience store</span><select><option>Lawson</option><option>FamilyMart</option><option>Ministop</option></select></label><label class="field"><span>Contact</span><input autocomplete="email" placeholder="Email address or mobile number" /></label></div>
+      <div class="compact-fields"><label class="field"><span>Convenience store</span><select name="store" [(ngModel)]="details['konbiniCode']" (ngModelChange)="changed()"><option value="LAWSON">Lawson</option><option value="FAMILY_MART">FamilyMart</option><option value="MINISTOP">Ministop</option></select></label><label class="field"><span>Email</span><input name="kombiniEmail" [(ngModel)]="details['email']" (ngModelChange)="changed()" autocomplete="email" placeholder="customer@example.com" /></label></div>
       <ng-container *ngTemplateOutlet="instructions"></ng-container>
     }
     @case ('payeasy') {
-      <div class="compact-fields"><label class="field field-wide"><span>Contact</span><input autocomplete="email" placeholder="Email address or mobile number" /></label></div>
+      <div class="compact-fields"><label class="field field-wide"><span>Email</span><input name="payeasyEmail" [(ngModel)]="details['email']" (ngModelChange)="changed()" autocomplete="email" placeholder="customer@example.com" /></label></div>
       <ng-container *ngTemplateOutlet="instructions"></ng-container>
     }
     @case ('furikomi') {
-      <div class="compact-fields"><label class="field field-wide"><span>Contact</span><input autocomplete="email" placeholder="Email address or mobile number" /></label></div>
+      <div class="compact-fields"><label class="field field-wide"><span>Email</span><input name="furikomiEmail" [(ngModel)]="details['email']" (ngModelChange)="changed()" autocomplete="email" placeholder="customer@example.com" /></label></div>
       <ng-container *ngTemplateOutlet="instructions"></ng-container>
     }
   }

@@ -36,3 +36,42 @@ logging:
   level:
     root: INFO
     io.github.patelsa032766.gmopayments: INFO
+
+# Deployment integration settings. Environment variables are intentionally
+# compatible with the Flask reference implementation so a developer may reuse
+# their own sandbox values without copying credentials into this repository.
+gmo:
+  live-calls-enabled: ${GMO_LIVE_CALLS_ENABLED:false}
+  openapi-base-url: ${GMO_OPENAPI_BASE_URL:https://stg.openapi.mul-pay.jp}
+  protocol-base-url: ${GMO_PROTOCOL_BASE_URL:https://pt01.mul-pay.jp/payment}
+  mp-token-js-url: ${GMO_MP_TOKEN_JS_URL:https://stg.static.mul-pay.jp/payment/js/mp-token.js}
+  openapi-version: ${GMO_OPENAPI_VERSION:}
+  shop-id: ${GMO_SHOP_ID:}
+  shop-pass: ${GMO_SHOP_PASS:}
+  site-id: ${GMO_SITE_ID:}
+  site-pass: ${GMO_SITE_PASS:}
+  public-base-url: ${DEV_PUBLIC_BASE_URL:https://payments.example.com}
+  browser-return-base-url: ${GMO_BROWSER_RETURN_BASE_URL:}
+  openapi-webhook-url: ${GMO_OPENAPI_WEBHOOK_URL:}
+  protocol-notification-url: ${GMO_PROTOCOL_NOTIFICATION_URL:}
+  webhooks-enabled: ${GMO_WEBHOOKS_ENABLED:false}
+  # Required when webhooks are enabled. Configure Cloudflare or another trusted
+  # reverse proxy to inject this value as X-Webhook-Ingress-Token. Never put the
+  # value in source control or in a URL/query string.
+  webhook-ingress-token: ${GMO_WEBHOOK_INGRESS_TOKEN:}
+
+  merchant:
+    name: ${GMO_MERCHANT_NAME:Example Insurance}
+    name-kana: ${GMO_MERCHANT_NAME_KANA:サンプルホケン}
+    name-short: ${GMO_MERCHANT_NAME_SHORT:サンプル}
+    name-alphabet: ${GMO_MERCHANT_NAME_ALPHABET:EXAMPLE INSURANCE}
+    contact-name: ${GMO_CONTACT_NAME:Payment Support}
+    contact-email: ${GMO_CONTACT_EMAIL:support@example.com}
+    contact-url: ${GMO_CONTACT_URL:https://example.com/support}
+    contact-phone: ${GMO_CONTACT_PHONE:0312345678}
+    contact-opening-hours: ${GMO_CONTACT_OPENING_HOURS:10:00-18:00}
+
+# Administrative writes are disabled when this secret is blank. The Angular
+# operator supplies it only for an explicit mutation; it is never persisted.
+operator:
+  api-token: ${OPERATOR_API_TOKEN:}

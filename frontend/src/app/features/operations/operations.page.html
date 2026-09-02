@@ -1,25 +1,20 @@
 <section class="panel">
-  <div class="intro"><div><p class="eyebrow">Payment operations</p><h1>Transactions and reconciliation</h1>
-    <p>One payment thread will keep every API call, webhook, inquiry, retry, refund, chargeback, and SFTP result linked.</p></div><span>Foundation slice</span></div>
-  <nav class="subnav" aria-label="Operations views"><button class="active">Transactions</button><button>Webhook setup</button><button>SFTP imports</button></nav>
-  <div class="filters"><input aria-label="Search transactions" placeholder="Search customer, application, transaction…"><select aria-label="Status"><option>All statuses</option></select><select aria-label="Method"><option>All methods</option></select></div>
-  <div class="workspace">
-    <ol class="timeline" aria-label="Example transaction timeline">
-      <li class="active"><span></span><div><small>Payment created</small><strong>Checkout request accepted</strong><time>10:18:42 · Tokyo</time></div></li>
-      <li><span></span><div><small>GMO API</small><strong>Authorization requested</strong><time>10:18:43 · Tokyo</time></div></li>
-      <li><span></span><div><small>Response</small><strong>Authorized</strong><time>10:18:44 · Tokyo</time></div></li>
-    </ol>
-    <section class="exchange"><p class="eyebrow">Selected event</p><h2>Outbound request</h2>
-      <pre>POST /payment/authorize
-Idempotency-Key: ••••9584
-{{ '{' }}
-  "amount": 10000,
-  "currency": "JPY"
-{{ '}' }}</pre>
-      <h2>Inbound response</h2><pre class="response">HTTP 200
-{{ '{' }}
-  "status": "AUTHORIZED"
-{{ '}' }}</pre>
-    </section>
-  </div>
+  <div class="intro"><div><p class="eyebrow">Payment operations</p><h1>Transactions and reconciliation</h1><p>One payment per row, with its complete API, webhook, inquiry, retry, refund, chargeback, and SFTP history kept together.</p></div>
+    <div class="operator-controls"><label>Viewing as<select><option>Payment operator</option><option>Configuration administrator</option><option>Read-only auditor</option></select></label><label>Display time<select [(ngModel)]="timezone"><option value="+0900">Tokyo</option><option value="+0000">UTC</option><option value="-0700">Los Angeles</option></select></label></div></div>
+  <nav class="subnav" aria-label="Operations views"><button [class.active]="section()==='transactions'" (click)="switchSection('transactions')">Transactions</button><button [class.active]="section()==='webhooks'" (click)="switchSection('webhooks')">Webhook setup</button><button [class.active]="section()==='sftp'" (click)="switchSection('sftp')">SFTP imports</button></nav>
+  @if (section() === 'transactions') {
+    <div class="filters"><input [ngModel]="search()" (ngModelChange)="search.set($event)" aria-label="Search transactions" placeholder="Search customer, application, transaction…"><select [ngModel]="status()" (ngModelChange)="status.set($event)"><option value="">All statuses</option><option>AUTHORIZED</option><option>PAID</option><option>PROCESSING</option><option>FAILED</option></select><select [ngModel]="method()" (ngModelChange)="method.set($event)"><option value="">All methods</option><option value="card">Card</option><option value="paypay">PayPay</option><option value="bankDirect">Real-time bank debit</option><option value="kozaFurikae">Koza Furikae</option><option value="furikomi">Furikomi</option></select></div>
+    <p class="row-count">{{ filtered().length }} transactions · Times shown for {{ timezoneLabel() }}</p>
+    <div class="transaction-list" role="table"><div class="transaction-header"><span>Amount</span><span>Status</span><span>Method</span><span>Customer</span><span>Reference</span><span>Updated</span></div>
+      @for (row of filtered(); track row.transactionId) {<button class="transaction-row" [class.is-selected]="thread()?.transaction?.transactionId === row.transactionId" (click)="selectTransaction(row)"><span>JPY {{ row.amountJpy.toLocaleString() }}</span><span><i class="state" [class.attention]="row.requiresAttention">{{ row.canonicalState }}</i></span><span>{{ row.method }}<small>{{ row.initiationType }}</small></span><span>{{ row.customerName }}<small>{{ row.customerCode }}</small></span><span>{{ row.applicationNumber || row.merchantReference }}<small>{{ row.transactionId }}</small></span><span>{{ row.updatedAt | date:'d MMM y, HH:mm':timezone }}<small>{{ row.requiresAttention ? 'Needs attention' : 'Consistent' }}</small></span></button>}
+      @empty {<div class="empty">{{ loading() ? 'Loading transactions…' : failed() ? 'Transactions could not be loaded.' : 'No transactions match the filters.' }}</div>}
+    </div>
+    @if (thread(); as selected) {<section class="thread-heading"><div><p class="eyebrow">Transaction thread</p><h2>{{ selected.transaction.transactionId }}</h2></div><span class="state">{{ selected.transaction.canonicalState }}</span></section>
+      <div class="workspace"><ol class="timeline">@for (event of selected.events; track event.eventId) {<li [class.active]="selectedEvent()?.eventId===event.eventId" (click)="selectEvent(event)"><span></span><button><small>{{ event.source }}</small><strong>{{ event.summary }}</strong><time>{{ event.occurredAt | date:'d MMM y, HH:mm:ss':timezone }}</time></button></li>}</ol>
+        <section class="exchange">@if (selectedEvent(); as event) {<p class="eyebrow">Selected event</p><h2>{{ event.eventType }}</h2><p class="event-state">State after event: {{ event.canonicalStateAfter }}</p>@if (exchange(); as call) {<div class="exchange-meta"><span>{{ call.transport }}</span><span>{{ call.operation }}</span><span>Attempt {{ call.attemptNumber }}</span><span>{{ call.httpStatus || 'async' }}</span></div><h2>Outbound call</h2><pre>{{ call.requestBody | json }}</pre><h2>Inbound response</h2><pre class="response">{{ call.responseBody | json }}</pre>} @else {<h2>Event evidence</h2><pre>{{ event.evidence | json }}</pre>}}</section></div>}
+  } @else if (section() === 'webhooks') {
+    <section class="setup-grid"><article><p class="eyebrow">Ingress</p><h2>Webhook receiver</h2><p>Disabled by default. When enabled, a trusted edge injects <code>X-Webhook-Ingress-Token</code>; the secret never appears in URLs or SQLite.</p><dl><div><dt>OpenAPI</dt><dd>/webhooks/gmo/openapi</dd></div><div><dt>idPass protocol</dt><dd>/webhooks/gmo/protocol</dd></div><div><dt>Acknowledgement</dt><dd>HTTP 200 and body 0 after durable receipt</dd></div></dl></article><article><p class="eyebrow">Delivery model</p><h2>Durable and idempotent</h2><p>Payload hashes deduplicate redelivery. Matched notifications append to the existing payment thread; unmatched messages remain available for reconciliation.</p></article></section>
+  } @else {
+    <section class="setup-grid"><article><p class="eyebrow">Fallback reconciliation</p><h2>SFTP imports</h2><p>SFTP remains independent of webhooks. Files are checksum-deduplicated, staged row by row, then matched to the same transaction thread.</p><dl><div><dt>Connection</dt><dd>Environment or secret manager</dd></div><div><dt>Ready marker</dt><dd>Configurable, default .ok</dd></div><div><dt>Archive</dt><dd>Only after durable import</dd></div></dl></article><article><p class="eyebrow">Current state</p><h2>Not enabled</h2><p>Enable only after host-key pinning, remote paths, schedule, and the provider file format have been configured.</p></article></section>
+  }
 </section>
