@@ -5,8 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.patelsa032766.gmopayments.application.port.PaymentCommandRepository;
 import io.github.patelsa032766.gmopayments.domain.PaymentExecutionContext;
 import io.github.patelsa032766.gmopayments.domain.PaymentGatewayResult;
+import io.github.patelsa032766.gmopayments.domain.PaymentContinuationResult;
 import io.github.patelsa032766.gmopayments.domain.PaymentMethodCode;
 import io.github.patelsa032766.gmopayments.domain.PaymentNextAction;
+import io.github.patelsa032766.gmopayments.domain.ProviderCallEvidence;
 import io.github.patelsa032766.gmopayments.domain.PaymentSubmissionResult;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -114,7 +116,9 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
     }
 
     @Override
-    public PaymentSubmissionResult recordSuccess(PaymentExecutionContext context, PaymentGatewayResult result) {
+    public PaymentSubmissionResult recordSuccess(PaymentExecutionContext context,
+                                                 PaymentContinuationResult execution) {
+        PaymentGatewayResult result = execution.outcome();
         PaymentSubmissionResult persistent = lockRetry.execute("record provider success", () ->
                 transactions.execute(status -> {
                     long transactionPk = transactionPk(context.transactionId());
@@ -136,7 +140,22 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                             .param("applicationNumber", context.applicationNumber()).update();
                     long eventPk = appendEvent(transactionPk, result.eventType(), "GMO_API", result.summary(),
                             result.canonicalState(), "system", context.correlationId(), result.instructions());
-                    appendExchange(transactionPk, eventPk, context, result);
+                    for (ProviderCallEvidence exchange : execution.exchanges()) {
+                        appendContinuationExchange(transactionPk, eventPk,
+                                context.correlationId(), exchange);
+                    }
+                    appendProviderResource(transactionPk, "PROVIDER_ORDER", result.providerOrderId(),
+                            result.canonicalState());
+                    appendProviderResource(transactionPk, "PROVIDER_ACCESS", result.providerAccessId(),
+                            result.canonicalState());
+
+                    if (shouldProvisionInstrument(context.method(), result.canonicalState())
+                            && !result.requiresAttention()) {
+                        long instrumentPk = provisionInstrument(context, execution,
+                                result.providerAccessId());
+                        jdbc.sql("UPDATE payment_transaction SET instrument_id=:instrumentId WHERE id=:transactionId")
+                                .param("instrumentId", instrumentPk).param("transactionId", transactionPk).update();
+                    }
 
                     Map<String, Object> response = new LinkedHashMap<>();
                     response.put("state", result.canonicalState());
@@ -145,9 +164,11 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                     response.put("instructions", result.instructions());
                     jdbc.sql("""
                             UPDATE idempotency_record
-                            SET status = 'COMPLETED', response_json = :response, updated_at = :updatedAt
+                            SET status = :status, response_json = :response, updated_at = :updatedAt
                             WHERE transaction_id = :transactionId
-                            """).param("response", json(response)).param("updatedAt", now)
+                            """).param("status", isTerminal(result.canonicalState())
+                                    ? "COMPLETED" : result.canonicalState())
+                            .param("response", json(response)).param("updatedAt", now)
                             .param("transactionId", transactionPk).update();
                     return new PaymentSubmissionResult(context.transactionId(), context.applicationNumber(),
                             context.method(), result.canonicalState(), result.providerStatus(),
@@ -161,7 +182,8 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
 
     @Override
     public PaymentSubmissionResult recordFailure(PaymentExecutionContext context, String state,
-                                                 String summary, boolean requiresAttention) {
+                                                 String summary, boolean requiresAttention,
+                                                 ProviderCallEvidence evidence) {
         return lockRetry.execute("record provider failure", () -> transactions.execute(status -> {
             long transactionPk = transactionPk(context.transactionId());
             String now = Instant.now().toString();
@@ -177,8 +199,11 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                     WHERE application_number = :applicationNumber
                     """).param("state", state).param("updatedAt", now)
                     .param("applicationNumber", context.applicationNumber()).update();
-            appendEvent(transactionPk, "PROVIDER_FAILURE", "GMO_API", summary, state,
+            long eventPk = appendEvent(transactionPk, "PROVIDER_FAILURE", "GMO_API", summary, state,
                     "system", context.correlationId(), Map.of());
+            if (evidence != null) {
+                appendContinuationExchange(transactionPk, eventPk, context.correlationId(), evidence);
+            }
             jdbc.sql("""
                     UPDATE idempotency_record SET status = :status, response_json = :response, updated_at = :updatedAt
                     WHERE transaction_id = :transactionId
@@ -207,6 +232,104 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                     rs.getBoolean("requires_attention"), PaymentNextAction.none(),
                     nestedMap(response, "instructions"), true);
         }).optional();
+    }
+
+    @Override
+    public ContinuationReservation reserveContinuation(String providerReference, PaymentMethodCode method) {
+        return lockRetry.execute("reserve browser-return continuation", () -> transactions.execute(status -> {
+            var row = jdbc.sql("""
+                    SELECT t.transaction_id, t.canonical_state
+                    FROM payment_transaction t
+                    WHERE t.method_code=:method
+                      AND (t.provider_access_id=:providerReference OR EXISTS (
+                          SELECT 1 FROM payment_resource r
+                          WHERE r.transaction_id=t.id AND r.provider_reference=:providerReference))
+                    ORDER BY t.id DESC LIMIT 1
+                    """).param("method", method.apiValue()).param("providerReference", providerReference)
+                    .query((rs, rowNum) -> new ContinuationRow(rs.getString("transaction_id"),
+                            rs.getString("canonical_state"))).optional()
+                    .orElseThrow(() -> new IllegalArgumentException("The GMO return could not be linked to a payment"));
+            PaymentExecutionContext context = loadContext(row.transactionId());
+            boolean ready = "REGISTRATION_PENDING".equals(row.state());
+            if (!ready) return new ContinuationReservation(context, true);
+
+            String now = Instant.now().toString();
+            jdbc.sql("""
+                    UPDATE payment_transaction
+                    SET canonical_state='RETURN_PROCESSING', version=version+1, updated_at=:updatedAt
+                    WHERE transaction_id=:transactionId AND canonical_state='REGISTRATION_PENDING'
+                    """).param("updatedAt", now).param("transactionId", row.transactionId()).update();
+            jdbc.sql("""
+                    UPDATE application_record SET state='RETURN_PROCESSING', version=version+1,
+                        updated_at=:updatedAt
+                    WHERE id=(SELECT application_id FROM payment_transaction WHERE transaction_id=:transactionId)
+                    """).param("updatedAt", now).param("transactionId", row.transactionId()).update();
+            return new ContinuationReservation(context, false);
+        }));
+    }
+
+    @Override
+    public PaymentSubmissionResult recordContinuation(PaymentExecutionContext context,
+                                                      PaymentContinuationResult continuation) {
+        return lockRetry.execute("record browser-return continuation", () -> transactions.execute(status -> {
+            PaymentGatewayResult result = continuation.outcome();
+            long transactionPk = transactionPk(context.transactionId());
+            String initialProviderReference = jdbc.sql("""
+                    SELECT provider_access_id FROM payment_transaction WHERE id=:id
+                    """).param("id", transactionPk).query(String.class).optional().orElse(null);
+            String now = Instant.now().toString();
+            jdbc.sql("""
+                    UPDATE payment_transaction
+                    SET canonical_state=:state,
+                        provider_order_id=COALESCE(:providerOrderId, provider_order_id),
+                        provider_access_id=COALESCE(:providerAccessId, provider_access_id),
+                        provider_status=:providerStatus, requires_attention=:attention,
+                        version=version+1, updated_at=:updatedAt
+                    WHERE id=:id
+                    """).param("state", result.canonicalState()).param("providerOrderId", result.providerOrderId())
+                    .param("providerAccessId", result.providerAccessId()).param("providerStatus", result.providerStatus())
+                    .param("attention", result.requiresAttention()).param("updatedAt", now)
+                    .param("id", transactionPk).update();
+            jdbc.sql("""
+                    UPDATE application_record SET state=:state, version=version+1, updated_at=:updatedAt
+                    WHERE application_number=:applicationNumber
+                    """).param("state", result.canonicalState()).param("updatedAt", now)
+                    .param("applicationNumber", context.applicationNumber()).update();
+
+            long eventPk = appendEvent(transactionPk, result.eventType(), "BROWSER_RETURN", result.summary(),
+                    result.canonicalState(), "customer", context.correlationId(), result.instructions());
+            for (ProviderCallEvidence exchange : continuation.exchanges()) {
+                appendContinuationExchange(transactionPk, eventPk, context.correlationId(), exchange);
+            }
+            appendProviderResource(transactionPk, "REGISTRATION_REFERENCE", initialProviderReference,
+                    result.canonicalState());
+            appendProviderResource(transactionPk, "PROVIDER_ORDER", result.providerOrderId(),
+                    result.canonicalState());
+            appendProviderResource(transactionPk, "PROVIDER_ACCESS", result.providerAccessId(),
+                    result.canonicalState());
+
+            if (shouldProvisionInstrument(context.method(), result.canonicalState())) {
+                long instrumentPk = provisionInstrument(context, continuation, initialProviderReference);
+                jdbc.sql("UPDATE payment_transaction SET instrument_id=:instrumentId WHERE id=:transactionId")
+                        .param("instrumentId", instrumentPk).param("transactionId", transactionPk).update();
+            }
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("state", result.canonicalState());
+            response.put("providerStatus", result.providerStatus());
+            response.put("requiresAttention", result.requiresAttention());
+            response.put("instructions", result.instructions());
+            jdbc.sql("""
+                    UPDATE idempotency_record
+                    SET status=:status, response_json=:response, updated_at=:updatedAt
+                    WHERE transaction_id=:transactionId
+                    """).param("status", isTerminal(result.canonicalState()) ? "COMPLETED" : result.canonicalState())
+                    .param("response", json(response)).param("updatedAt", now)
+                    .param("transactionId", transactionPk).update();
+            return new PaymentSubmissionResult(context.transactionId(), context.applicationNumber(),
+                    context.method(), result.canonicalState(), result.providerStatus(),
+                    result.requiresAttention(), PaymentNextAction.none(), result.instructions(), false);
+        }));
     }
 
     private PaymentExecutionContext loadContext(String transactionId) {
@@ -264,6 +387,177 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                 .param("outcome", result.canonicalState()).param("correlationId", context.correlationId()).update();
     }
 
+    private void appendContinuationExchange(long transactionPk, long eventPk, String correlationId,
+                                            ProviderCallEvidence result) {
+        jdbc.sql("""
+                INSERT INTO provider_exchange
+                    (exchange_id, transaction_id, event_id, direction, transport, operation,
+                     endpoint, http_status, duration_ms, request_body_json, response_body_json,
+                     outcome, correlation_id)
+                VALUES (:exchangeId, :transactionId, :eventId, 'PAIRED', :transport, :operation,
+                        :endpoint, :httpStatus, :durationMs, :requestBody, :responseBody,
+                        :outcome, :correlationId)
+                """).param("exchangeId", "EXC-" + compactId()).param("transactionId", transactionPk)
+                .param("eventId", eventPk).param("transport", result.transport())
+                .param("operation", result.operation()).param("endpoint", result.endpoint())
+                .param("httpStatus", result.httpStatus()).param("durationMs", result.durationMs())
+                .param("requestBody", json(result.sanitizedRequest()))
+                .param("responseBody", json(result.sanitizedResponse()))
+                .param("outcome", result.outcome()).param("correlationId", correlationId).update();
+    }
+
+    private void appendProviderResource(long transactionPk, String type, String providerReference,
+                                        String state) {
+        if (providerReference == null || providerReference.isBlank()) return;
+        boolean exists = jdbc.sql("""
+                SELECT COUNT(*) FROM payment_resource
+                WHERE transaction_id=:transactionId AND resource_type=:type AND provider_reference=:reference
+                """).param("transactionId", transactionPk).param("type", type)
+                .param("reference", providerReference).query(Integer.class).single() > 0;
+        if (exists) return;
+        jdbc.sql("""
+                INSERT INTO payment_resource
+                    (resource_id, transaction_id, resource_type, provider_reference, state)
+                VALUES (:resourceId, :transactionId, :type, :reference, :state)
+                """).param("resourceId", "RES-" + compactId()).param("transactionId", transactionPk)
+                .param("type", type).param("reference", providerReference).param("state", state).update();
+    }
+
+    private long provisionInstrument(PaymentExecutionContext context,
+                                     PaymentContinuationResult continuation,
+                                     String registrationReference) {
+        String method = context.method().apiValue();
+        String product = productCode(context.method());
+        String providerInstrumentReference = switch (context.method()) {
+            case CARD -> findValue(continuation, "cardId");
+            case PAYPAY -> firstNonBlank(findValue(continuation, "acceptanceCode"),
+                    registrationReference);
+            case BANK_DIRECT_REALTIME, KOZA_FURIKAE_SELECT -> registrationReference;
+            default -> registrationReference;
+        };
+        String masked = switch (context.method()) {
+            case CARD -> firstNonBlank(findValue(continuation, "cardNumber"), "Saved card");
+            case PAYPAY -> "Registered PayPay account";
+            case BANK_DIRECT_REALTIME -> "Registered real-time debit account";
+            case KOZA_FURIKAE_SELECT -> "Registered monthly Koza Furikae mandate";
+            default -> "Registered payment method";
+        };
+        if (context.method() == PaymentMethodCode.BANK_DIRECT_REALTIME
+                || context.method() == PaymentMethodCode.KOZA_FURIKAE_SELECT) {
+            String maskedAccount = findMaskedAccount(continuation);
+            if (maskedAccount != null) masked += " • " + maskedAccount;
+        }
+
+        Optional<Long> existing = providerInstrumentReference == null
+                ? Optional.empty()
+                : jdbc.sql("""
+                        SELECT id FROM payment_instrument
+                        WHERE customer_id=(SELECT id FROM customer WHERE customer_code=:customerCode)
+                          AND method_code=:method AND provider_instrument_reference=:reference
+                        ORDER BY id DESC LIMIT 1
+                        """).param("customerCode", context.customerCode()).param("method", method)
+                        .param("reference", providerInstrumentReference).query(Long.class).optional();
+
+        long customerPk = jdbc.sql("SELECT id FROM customer WHERE customer_code=:customerCode")
+                .param("customerCode", context.customerCode()).query(Long.class).single();
+        // The newest successfully registered method is primary. The previous
+        // primary becomes the sole backup; any older backup remains active but
+        // loses its preference role.
+        jdbc.sql("UPDATE payment_instrument SET preference_role=NULL WHERE customer_id=:customer AND preference_role='BACKUP'")
+                .param("customer", customerPk).update();
+        jdbc.sql("UPDATE payment_instrument SET preference_role='BACKUP' WHERE customer_id=:customer AND preference_role='PRIMARY'")
+                .param("customer", customerPk).update();
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("memberId", context.customerCode());
+        metadata.put("registrationStatus", "SUCCESS");
+        metadata.put("registrationReference", registrationReference == null ? "" : registrationReference);
+        if (context.method() == PaymentMethodCode.CARD) {
+            metadata.put("cardId", providerInstrumentReference == null ? "" : providerInstrumentReference);
+            metadata.put("cardType", firstNonBlank(findValue(continuation, "type"), "CREDIT_CARD"));
+            metadata.put("cardholderName", firstNonBlank(findValue(continuation, "cardholderName"), ""));
+        } else if (context.method() == PaymentMethodCode.PAYPAY) {
+            metadata.put("walletType", "PAYPAY");
+            metadata.put("acceptanceCode", firstNonBlank(findValue(continuation, "acceptanceCode"), ""));
+        }
+        if (existing.isPresent()) {
+            jdbc.sql("""
+                    UPDATE payment_instrument
+                    SET product_code=:product, provider_instrument_reference=:reference,
+                        masked_display=:masked, state='ACTIVE', preference_role='PRIMARY',
+                        metadata_json=:metadata, version=version+1, updated_at=:updatedAt
+                    WHERE id=:id
+                    """).param("product", product).param("reference", providerInstrumentReference)
+                    .param("masked", masked).param("metadata", json(metadata))
+                    .param("updatedAt", Instant.now().toString()).param("id", existing.get()).update();
+            return existing.get();
+        }
+        String instrumentId = "PM-" + context.method().name() + "-" + compactId();
+        jdbc.sql("""
+                INSERT INTO payment_instrument
+                    (instrument_id, customer_id, method_code, product_code, provider_member_reference,
+                     provider_instrument_reference, masked_display, state, preference_role, metadata_json)
+                VALUES (:instrumentId, :customer, :method, :product, :memberId, :reference,
+                        :masked, 'ACTIVE', 'PRIMARY', :metadata)
+                """).param("instrumentId", instrumentId).param("customer", customerPk)
+                .param("method", method).param("product", product).param("memberId", context.customerCode())
+                .param("reference", providerInstrumentReference).param("masked", masked)
+                .param("metadata", json(metadata)).update();
+        return jdbc.sql("SELECT id FROM payment_instrument WHERE instrument_id=:instrumentId")
+                .param("instrumentId", instrumentId).query(Long.class).single();
+    }
+
+    private static boolean shouldProvisionInstrument(PaymentMethodCode method, String state) {
+        return (method == PaymentMethodCode.CARD
+                    && ("AUTHORIZED".equals(state) || "PAID".equals(state)))
+                || (method == PaymentMethodCode.PAYPAY
+                    && ("AUTHORIZED".equals(state) || "PAID".equals(state)))
+                || (method == PaymentMethodCode.BANK_DIRECT_REALTIME && "PAID".equals(state))
+                || (method == PaymentMethodCode.KOZA_FURIKAE_SELECT
+                    && "MANDATE_REGISTERED_TRANSFER_DUE".equals(state));
+    }
+
+    private static boolean isTerminal(String state) {
+        return !"REGISTRATION_PENDING".equals(state) && !"PROCESSING".equals(state)
+                && !"RETURN_PROCESSING".equals(state);
+    }
+
+    private static String findMaskedAccount(PaymentContinuationResult continuation) {
+        return firstNonBlank(findValue(continuation, "AccountNumber"),
+                findValue(continuation, "accountNumber"));
+    }
+
+    /** Searches sanitized nested response maps/lists without retaining raw provider data. */
+    private static String findValue(PaymentContinuationResult continuation, String key) {
+        for (ProviderCallEvidence exchange : continuation.exchanges()) {
+            String found = findValue(exchange.sanitizedResponse(), key);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private static String findValue(Object node, String key) {
+        if (node instanceof Map<?, ?> map) {
+            for (var entry : map.entrySet()) {
+                if (key.equals(String.valueOf(entry.getKey())) && entry.getValue() != null) {
+                    return String.valueOf(entry.getValue());
+                }
+                String nested = findValue(entry.getValue(), key);
+                if (nested != null) return nested;
+            }
+        } else if (node instanceof Iterable<?> values) {
+            for (Object value : values) {
+                String nested = findValue(value, key);
+                if (nested != null) return nested;
+            }
+        }
+        return null;
+    }
+
+    private static String firstNonBlank(String first, String second) {
+        return first != null && !first.isBlank() ? first : second;
+    }
+
     private long transactionPk(String transactionId) {
         return jdbc.sql("SELECT id FROM payment_transaction WHERE transaction_id = :transactionId")
                 .param("transactionId", transactionId).query(Long.class).single();
@@ -311,6 +605,7 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
     }
 
     private record ExistingReservation(String fingerprint, String transactionId) {}
+    private record ContinuationRow(String transactionId, String state) {}
     private record ApplicationRow(long id, String applicationNumber, long amountJpy,
                                   int configurationVersion, long customerId,
                                   String customerCode, String customerName) {}

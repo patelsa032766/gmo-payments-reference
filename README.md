@@ -1,143 +1,217 @@
 # GMO Payments Reference Application
 
-This repository is the build workspace for a modular insurance-payment reference application using Java, Spring Boot, Angular, and SQLite. The customer and operator experience was approved on 1 September 2026 and is preserved as static mock baseline version 28.
+A modular Java 21, Spring Boot, Angular, and SQLite reference implementation for customer checkout and payment operations. It includes a safe deterministic mode for public use and explicitly gated GMO sandbox adapters for Card, PayPay, real-time bank debit, cash methods, and Koza Furikae Select.
 
-## Project status
+The approved customer/operator experience is preserved separately in `ui-mock/` at baseline `20260901-28`. The Angular application implements that baseline as four routes:
 
-- UX baseline: approved and locked
-- Baseline version: `20260901-28`
-- Build milestone: first runnable vertical slice implemented
-- Backend: Java 21 / Spring Boot 4.1.1 modular Maven reactor
-- Frontend: Angular 22.1 standalone application with four lazy-loaded routes
-- Persistence: Flyway-managed SQLite configuration baseline with WAL and busy timeout
-- Live GMO calls: not enabled
-- Public GitHub repository: `patelsa032766/gmo-payments-reference`
+| Route | Audience | Purpose |
+| --- | --- | --- |
+| `/checkout` | Customer | Eligibility-filtered checkout, method-specific collection, provider handoff, and confirmation. |
+| `/configuration` | Administrator | Draft/publish method visibility, order, thresholds, plan eligibility, and English/Japanese preview. |
+| `/operations` | Operator/auditor | Transaction list, chronological lifecycle thread, paired outbound/inbound evidence, webhook setup, and SFTP status. |
+| `/mit` | Payment operator | Saved instruments, Primary/Backup assignment, individual MIT charges, and monthly Koza batches. |
 
-The approved mock is independently runnable from [`ui-mock`](./ui-mock/README.md). Application code must be added beside that directory rather than replacing it. Any future UX proposal must use a new mock version and must not silently rewrite the approved baseline.
+## What is implemented
 
-## Run the application locally
+- Server-side method enablement, ordering, plan rules, eKYC rules, channels, amount thresholds, and localized labels.
+- Versioned configuration drafts with explicit publish/discard commands.
+- Card browser tokenization boundary, first-payment authorization, and reusable-card registration.
+- PayPay recurring-account authorization followed by first-payment authorization.
+- Real-time bank debit (`口座直結決済`) registration followed immediately by a debit.
+- Koza Furikae Select (`口座振替（セレクト）`) registration followed by Furikomi instructions for the first premium; later monthly requests use a separate batch workflow.
+- One-time Kombini, Pay-easy, and Furikomi command mappings.
+- Saved Card, PayPay, and real-time bank-debit MIT commands.
+- Exactly one Primary and optionally one Backup active instrument per customer; the newest successful registration becomes Primary.
+- Koza batch reservation/submission with one durable transaction per debit request and asynchronous result ingestion.
+- Append-only transaction threads containing checkout, API, browser return, webhook, retry/inquiry, reconciliation, refund, and chargeback evidence when received.
+- Optional authenticated webhooks and independent SFTP reconciliation.
+- SQLite WAL mode, foreign keys, busy timeout, bounded lock retries, idempotency records, and Flyway migrations.
+- Deterministic simulation by default. No clean clone makes a GMO request.
 
-Prerequisites are JDK 21 and Node.js 24. The Maven version is pinned by the checked-in wrapper; npm installs the Angular toolchain from `package-lock.json`.
+## Prerequisites
 
-Start the backend in terminal one:
+- JDK 21
+- Node.js 24 LTS and npm
+- Bash-compatible shell for the helper scripts
+
+The Maven wrapper is committed, so a separate Maven installation is unnecessary.
+
+## Run locally in simulation mode
+
+Terminal 1:
 
 ```bash
-cd backend
-./mvnw test
-./mvnw -pl bootstrap -am install -DskipTests
-./mvnw -pl bootstrap spring-boot:run
+cd /path/to/gmo-payments-reference
+export OPERATOR_API_TOKEN=local-operator-token
+./scripts/run-backend.sh
 ```
 
-If macOS cannot locate a Homebrew JDK automatically, set it for that terminal first:
+The helper installs all reactor modules first, then starts Spring Boot. That first install matters on a clean clone because `spring-boot:run` executes from `bootstrap` and needs the sibling adapter artifacts.
+
+Terminal 2:
+
+```bash
+cd /path/to/gmo-payments-reference/frontend
+npm ci
+npm start
+```
+
+Open `http://127.0.0.1:4200`. Angular proxies `/api` and `/actuator` to `http://127.0.0.1:8080`.
+
+```bash
+curl http://127.0.0.1:8080/actuator/health
+```
+
+If Homebrew's JDK is not selected on macOS:
 
 ```bash
 export JAVA_HOME=/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 export PATH=/usr/local/opt/openjdk@21/bin:$PATH
 ```
 
-Start Angular in terminal two:
+## Environment configuration
+
+Copy `.env.example` to `.env.local`, which is Git-ignored, then edit only local values:
 
 ```bash
-cd frontend
-npm install
-npm start
+cp .env.example .env.local
+set -a
+source .env.local
+set +a
+./scripts/run-backend.sh
 ```
 
-Open `http://127.0.0.1:4200`. Angular proxies `/api` and `/actuator` to Spring Boot on port `8080`. Useful direct checks are:
+Configuration precedence is:
 
-```bash
-curl http://127.0.0.1:8080/actuator/health
-curl 'http://127.0.0.1:8080/api/v1/checkout/options?channel=PA&amountJpy=10000&monthly=true&ekycVerified=true&language=en'
-```
-
-To run the frontend checks:
-
-```bash
-cd frontend
-npm test -- --watch=false
-npm run build
-```
-
-### What works in this slice
-
-- Spring Boot starts, Flyway creates the SQLite schema, and Actuator reports health.
-- The published configuration release contains enabled state, recurring eligibility, channel coverage, amount thresholds, localized labels, and display order.
-- `GET /api/v1/checkout/options` applies those rules server-side; Angular renders only the returned methods.
-- `GET /api/v1/configuration/active` feeds the Configuration route.
-- Checkout supports method selection and a non-financial confirmation step.
-- API & Webhooks and MIT reproduce the approved operator layout but are explicitly non-executing until their command/event slices are implemented.
-
-No button in this milestone sends a GMO request or financial transaction.
-
-## Approved workspaces
-
-| Workspace | Audience | Purpose |
-| --- | --- | --- |
-| Checkout | Customer | Select an eligible payment method, complete the provider interaction, and receive a confirmation or payment instructions. |
-| Configuration | Configuration administrator | Manage method ordering, enablement, thresholds, language, integration addresses, feature flags, and draft/publish state. |
-| API & Webhooks | Payment operator and auditor | Inspect durable transaction threads, paired requests/responses, webhooks, inquiries, retries, and SFTP reconciliation. |
-| MIT Transactions | Payment operator | Charge saved instruments, assign Primary/Backup roles, remove stored methods, and submit monthly Koza Furikae batches. |
-
-## Locked payment decisions
-
-- Monthly Card and PayPay use authorization followed by capture before policy issuance.
-- Real-time bank debit (`口座直結決済`) registers an account and immediately requests a debit.
-- Koza Furikae Select (`口座振替（セレクト）`) is a different product and state machine.
-- The combined Koza customer journey first registers the future monthly mandate and, only after confirmation, automatically creates Furikomi instructions for the first premium.
-- A successful Koza registration does not mean the first premium is paid. The first premium remains due until the transfer is reconciled.
-- One-time policies may expose all enabled methods that satisfy channel, eKYC, and amount rules.
-- A customer has exactly one Primary stored method and optionally one distinct Backup. The latest successfully registered method becomes Primary by default; execution fallback behavior is deferred.
-- Refunds, chargebacks, disputes, notifications, inquiries, and reconciliation evidence remain linked to the original durable transaction thread.
-
-## Source layout
-
-```text
-frontend/                       Angular customer and operator application
-backend/
-  domain/                       Provider-independent payment domain
-  application/                  Use cases, transactions, ports, and policies
-  adapter-gmo/                  GMO OpenAPI and protocol adapters
-  adapter-persistence/          SQLite repositories and Flyway migrations
-  adapter-sftp/                 Reconciliation transport, staging, and parsing
-  adapter-web/                  REST, webhooks, security, and error mapping
-  bootstrap/                    Spring Boot assembly and runtime configuration
-docs/                           Architecture and build decisions
-ui-mock/                        Locked static UX baseline
-```
-
-The first four backend modules plus `bootstrap` now exist. `adapter-gmo` and `adapter-sftp` remain intentional future modules so no simulated behavior can be mistaken for a live integration. Dependencies point inward: adapters depend on application ports, and the domain has no Spring or provider dependency.
-
-See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for system boundaries, [`docs/DATABASE.md`](./docs/DATABASE.md) for SQLite ownership and lock rules, [`docs/API.md`](./docs/API.md) for the current contract, and [`docs/BUILD_HANDOFF.md`](./docs/BUILD_HANDOFF.md) for the implementation sequence and acceptance gates.
-
-## Configuration precedence
-
-Runtime configuration will resolve in this order:
-
-1. Locked environment variables or secret manager values
-2. Gitignored local configuration
-3. Published SQLite runtime configuration
+1. Environment/secret-manager values
+2. Ignored local overrides
+3. Published SQLite business configuration
 4. Safe generic defaults
 
-Webhook support is optional. When disabled, callback fields are omitted where supported, while browser-return handling, provider inquiries, and SFTP reconciliation remain independently configurable. Personal Cloudflare/KanjiAI values belong only in local overrides and must never be added to the public repository.
+Provider secrets, public tunnel addresses, SFTP keys, and ingress tokens are deployment settings, not publishable checkout configuration. The operator UI deliberately shows only safe status and endpoint information.
 
-## Public-repository safety
+## Connect a GMO sandbox
 
-Before publishing:
-
-1. Confirm no GMO Shop ID, Shop Password, Site ID, Site Password, access token, SFTP key, customer data, tunnel credential, or downloaded reconciliation file is tracked.
-2. Keep examples unmistakably synthetic and masked.
-3. Run the complete backend and frontend test suites.
-4. Run a dependency and secret scan.
-5. Confirm the public-domain dedication remains appropriate for every contribution.
-
-## License
-
-This project is released under [The Unlicense](./UNLICENSE), a public-domain dedication with no conditions on use, modification, distribution, commercial use, or private use. The software is provided without warranty.
-
-## View the approved mock
+Keep `GMO_LIVE_CALLS_ENABLED=false` while configuring. Supply your own sandbox values through `.env.local` or a secret manager:
 
 ```bash
-python3 -m http.server 8081 --directory "/Users/Samir/Documents/GMOPaymentsJava/ui-mock"
+GMO_SHOP_ID=...
+GMO_SHOP_PASS=...
+GMO_SITE_ID=...
+GMO_SITE_PASS=...
+GMO_LIVE_CALLS_ENABLED=true
+```
+
+The environment names are intentionally compatible with the companion Flask implementation, so developers can reuse private environment values without copying a credential file into this repository. Confirm the base URLs and enabled products against your own GMO contract before enabling live calls.
+
+Card PAN/CVC never enters Spring Boot. Angular loads GMO's MP Token browser library from `GMO_MP_TOKEN_JS_URL`, receives a one-use token, and sends only that token and the cardholder name to the backend.
+
+## Browser returns and webhook ingress
+
+A local application needs a public HTTPS origin for GMO browser returns and notifications. Use Cloudflare Tunnel, ngrok, an ingress controller, or another reverse proxy and configure its public origin only in local/deployment environment variables.
+
+```bash
+DEV_PUBLIC_BASE_URL=https://your-public-host.example
+GMO_BROWSER_RETURN_BASE_URL=https://your-public-host.example
+GMO_CUSTOMER_APP_BASE_URL=http://127.0.0.1:4200
+GMO_WEBHOOKS_ENABLED=true
+GMO_WEBHOOK_INGRESS_TOKEN=a-long-random-secret
+```
+
+Public callbacks are:
+
+- `POST /webhooks/gmo/openapi`
+- `POST /webhooks/gmo/protocol`
+- `POST /webhooks/gmo/protocol/return/bank-direct`
+- `POST /webhooks/gmo/protocol/return/koza-furikae`
+- `GET /api/v1/gmo/returns/paypay-registration`
+
+The two notification endpoints require `X-Webhook-Ingress-Token`. A trusted edge must inject that header after restricting direct origin access; do not put the secret in a URL. Browser-return endpoints use provider references and server-side inquiry/integrity validation instead of treating the browser as financial authority.
+
+When `GMO_WEBHOOKS_ENABLED=false`, notification endpoints respond as unavailable and GMO webhook URLs are omitted where the product permits. Browser-return completion and SFTP reconciliation remain independent.
+
+## SFTP reconciliation
+
+SFTP can operate whether webhooks are enabled or disabled. Enable it only with a pinned `known_hosts` file and one authentication mode:
+
+```bash
+SFTP_RECONCILIATION_ENABLED=true
+SFTP_HOST=sftp.example.com
+SFTP_USERNAME=merchant-account
+SFTP_PRIVATE_KEY_PATH=/absolute/private/path/id_ed25519
+SFTP_KNOWN_HOSTS_PATH=/absolute/private/path/known_hosts
+SFTP_INCOMING_PATH=/incoming
+SFTP_ARCHIVE_PATH=/archive
+```
+
+The poller accepts only matching filenames with a ready marker, enforces a byte limit, checksum-deduplicates files, stages rows durably, links rows to the original transaction thread, and archives only after import. A protected manual poll is available at `POST /api/v1/reconciliation/sftp/import` with `X-Operator-Token`.
+
+## Payment and retry safety
+
+Financial writes receive stable provider idempotency keys where GMO supports them. A timeout or 5xx after a financial submission is classified as an unknown outcome and is not automatically repeated. The operator sees the ambiguous exchange and the application must establish the result through a safe inquiry before another financial command is allowed.
+
+Only read-only inquiries retry automatically. The retry is bounded exponential backoff with full jitter, configured through `GMO_SAFE_READ_*`. HTTP 4xx responses are definitive; 429/502/503/504 inquiry failures are eligible for retry. Sanitized failed calls remain visible in the same transaction thread.
+
+## SQLite runtime and locking
+
+The default database is `backend/bootstrap/runtime/gmo-payments.db`. Flyway owns the schema. SQLite uses WAL, `foreign_keys=on`, a 5-second busy timeout, a small Hikari pool, optimistic versions, short write transactions, and bounded jittered retries for `SQLITE_BUSY`.
+
+No database transaction is held across GMO or SFTP network I/O. Intent is committed, the external operation runs, and sanitized evidence is appended in a new transaction. See `docs/DATABASE.md` for tables, state ownership, backup, and recovery.
+
+## Verification
+
+Run the complete deterministic suite:
+
+```bash
+./scripts/check.sh
+```
+
+Or separately:
+
+```bash
+cd backend && ./mvnw test
+cd ../frontend && npm test -- --watch=false && npm run build
+```
+
+Live sandbox calls are intentionally excluded from automated tests. Validate them product by product with synthetic data and inspect `/operations` after each call.
+
+## Repository layout
+
+```text
+backend/domain                 provider-independent types
+backend/application            use cases and outbound ports
+backend/adapter-gmo            OpenAPI/idPass mapping and clients
+backend/adapter-persistence    SQLite repositories and Flyway migrations
+backend/adapter-sftp           pinned-host SFTP acquisition
+backend/adapter-web            REST, returns, webhooks, and Problem Details
+backend/bootstrap              Spring Boot assembly and configuration
+frontend                       Angular customer/operator application
+ui-mock                        independently runnable locked mock
+docs                           architecture, API, database, and handoff guides
+```
+
+## Approved mock
+
+The mock remains independently runnable and never requires Java, Angular, or GMO credentials:
+
+```bash
+python3 -m http.server 8081 --directory ui-mock
 ```
 
 Open `http://127.0.0.1:8081/?v=20260901-28`.
+
+## Public-repository safety
+
+Before publishing, verify that no Shop/Site credentials, tokens, tunnel credentials, SFTP keys, runtime databases, downloaded files, or real customer/provider payloads are tracked. All committed examples are synthetic. `.env.local`, key files, SQLite/WAL files, reconciliation data, and tunnel configuration are ignored.
+
+## Further documentation
+
+- `docs/ARCHITECTURE.md` — boundaries, workflows, state/evidence model, security, and failure policy
+- `docs/API.md` — REST commands, headers, callbacks, and examples
+- `docs/DATABASE.md` — schema and SQLite interaction/locking rules
+- `docs/BUILD_HANDOFF.md` — implemented scope, validation gates, and remaining production decisions
+- `backend/README.md` — backend module and development guide
+
+## License
+
+Released under [The Unlicense](UNLICENSE), a public-domain dedication that permits unrestricted use, modification, distribution, commercial use, and private use. The software is provided without warranty.

@@ -90,10 +90,15 @@ public class SQLiteInboundMessageRepository implements InboundMessageRepository 
                                  WHERE e.transaction_id = t.id ORDER BY e.id LIMIT 1), '') correlation_id
                 FROM payment_transaction t
                 LEFT JOIN application_record a ON a.id = t.application_id
-                WHERE (:accessId IS NOT NULL AND t.provider_access_id = :accessId)
+                WHERE (:accessId IS NOT NULL AND (t.provider_access_id = :accessId OR EXISTS (
+                          SELECT 1 FROM payment_resource r
+                          WHERE r.transaction_id=t.id AND r.provider_reference=:accessId)))
                    OR (:orderId IS NOT NULL AND (t.provider_order_id = :orderId
                                                 OR t.merchant_reference = :orderId
-                                                OR a.application_number = :orderId))
+                                                OR a.application_number = :orderId
+                                                OR EXISTS (SELECT 1 FROM payment_resource r
+                                                           WHERE r.transaction_id=t.id
+                                                             AND r.provider_reference=:orderId)))
                 ORDER BY CASE WHEN :accessId IS NOT NULL AND t.provider_access_id = :accessId THEN 0 ELSE 1 END,
                          t.id DESC
                 LIMIT 1

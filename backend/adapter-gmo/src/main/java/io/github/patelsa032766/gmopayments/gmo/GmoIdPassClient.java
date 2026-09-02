@@ -1,5 +1,6 @@
 package io.github.patelsa032766.gmopayments.gmo;
 
+import io.github.patelsa032766.gmopayments.domain.ProviderCallEvidence;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -25,35 +26,70 @@ import java.util.Map;
 public class GmoIdPassClient {
     private static final Charset WINDOWS_31J = Charset.forName("Windows-31J");
     private final GmoProperties properties;
+    private final GmoSafeReadRetryExecutor retries;
     private final RestClient client;
 
-    public GmoIdPassClient(GmoProperties properties) {
+    public GmoIdPassClient(GmoProperties properties, GmoSafeReadRetryExecutor retries) {
         this.properties = properties;
+        this.retries = retries;
         this.client = RestClient.builder().baseUrl(properties.getProtocolBaseUrl()).build();
     }
 
     public GmoHttpResult post(String operation, Map<String, String> fields, boolean financialWrite) {
         properties.requireProtocolCredentials();
+        if (financialWrite) return invoke(operation, fields, true);
+        return retries.execute(() -> invoke(operation, fields, false));
+    }
+
+    private GmoHttpResult invoke(String operation, Map<String, String> fields, boolean financialWrite) {
         Instant started = Instant.now();
         try {
             byte[] body = encode(fields).getBytes(StandardCharsets.US_ASCII);
-            var response = client.post().uri("/" + operation.replaceFirst("^/", ""))
+            return client.post().uri("/" + operation.replaceFirst("^/", ""))
                     .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .body(body)
-                    .retrieve().toEntity(byte[].class);
-            Map<String, Object> parsed = parse(response.getBody());
-            if (parsed.containsKey("ErrCode") || parsed.containsKey("ErrInfo")) {
-                throw new GmoProviderException("GMO idPass returned a provider error",
-                        response.getStatusCode().value(), false, false, GmoSanitizer.sanitize(parsed), null);
-            }
-            return new GmoHttpResult(response.getStatusCode().value(),
-                    Duration.between(started, Instant.now()).toMillis(), parsed, GmoSanitizer.sanitize(parsed));
+                    .exchange((request, response) -> {
+                        int status = response.getStatusCode().value();
+                        Map<String, Object> parsed = parse(response.getBody().readAllBytes());
+                        if (status < 200 || status >= 300) {
+                            boolean transientResponse = status == 429 || status == 502
+                                    || status == 503 || status == 504;
+                            var evidence = evidence(operation, status,
+                                    Duration.between(started, Instant.now()).toMillis(), fields, parsed,
+                                    financialWrite && status >= 500 ? "OUTCOME_UNKNOWN" : "REJECTED");
+                            throw new GmoProviderException("GMO idPass returned HTTP " + status,
+                                    status, financialWrite && status >= 500,
+                                    !financialWrite && transientResponse,
+                                    GmoSanitizer.sanitize(parsed), evidence, null);
+                        }
+                        if (parsed.containsKey("ErrCode") || parsed.containsKey("ErrInfo")) {
+                            var evidence = evidence(operation, status,
+                                    Duration.between(started, Instant.now()).toMillis(), fields, parsed,
+                                    "REJECTED");
+                            throw new GmoProviderException("GMO idPass returned a provider error",
+                                    status, false, false, GmoSanitizer.sanitize(parsed), evidence, null);
+                        }
+                        return new GmoHttpResult(status,
+                                Duration.between(started, Instant.now()).toMillis(), parsed,
+                                GmoSanitizer.sanitize(parsed));
+                    });
         } catch (GmoProviderException exception) {
             throw exception;
         } catch (RestClientException exception) {
+            var evidence = evidence(operation, null,
+                    Duration.between(started, Instant.now()).toMillis(), fields, Map.of(),
+                    financialWrite ? "OUTCOME_UNKNOWN" : "TRANSPORT_FAILURE");
             throw new GmoProviderException("GMO idPass request did not complete conclusively", null,
-                    financialWrite, !financialWrite, Map.of(), exception);
+                    financialWrite, !financialWrite, Map.of(), evidence, exception);
         }
+    }
+
+    private static ProviderCallEvidence evidence(String operation, Integer status, long duration,
+                                                  Map<String, String> request, Map<String, Object> response,
+                                                  String outcome) {
+        return new ProviderCallEvidence("IDPASS", operation.replace(".idPass", ""), operation,
+                status, duration > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) duration,
+                GmoSanitizer.sanitize(request), GmoSanitizer.sanitize(response), outcome);
     }
 
     private static String encode(Map<String, String> fields) {

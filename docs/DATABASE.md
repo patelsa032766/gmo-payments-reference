@@ -1,64 +1,133 @@
-# SQLite Data Guide
+# SQLite Data and Concurrency Guide
 
-This document describes the schema that exists in the foundation slice and the rules every future transaction table must follow. The complete planned transaction model is in [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+SQLite stores configuration, local payment state, sanitized API/webhook evidence, stored-instrument roles, Koza batches, and SFTP reconciliation checkpoints. It does not store raw PAN/CVC, bank login data, provider passwords, SFTP keys, ingress secrets, or tunnel credentials.
 
 ## Ownership and startup
 
-Flyway is the only schema owner. Spring Boot runs migrations before constructing repositories, and startup fails if a migration cannot be validated or applied. Never mutate a deployed migration; add a new versioned file under `backend/adapter-persistence/src/main/resources/db/migration`.
+Flyway is the only schema owner. Never edit an applied migration; add a new file under `backend/adapter-persistence/src/main/resources/db/migration` and test both a fresh database and an upgrade.
 
-The default developer URL is:
+Default URL:
 
 ```text
 jdbc:sqlite:runtime/gmo-payments.db?journal_mode=WAL&busy_timeout=5000&foreign_keys=on
 ```
 
-When launched with the documented Maven command, the working directory is `backend/bootstrap`, so the file is `backend/bootstrap/runtime/gmo-payments.db`. Set `DATABASE_URL` to an absolute path in deployed environments.
+With `scripts/run-backend.sh`, the file resolves to `backend/bootstrap/runtime/gmo-payments.db`. Deployments should use an absolute `DATABASE_URL` on durable private storage.
 
-The URL parameters are intentional:
+## Tables and interaction ownership
 
-- `journal_mode=WAL` allows readers to proceed while a writer commits.
-- `busy_timeout=5000` waits through short lock bursts instead of failing immediately.
-- `foreign_keys=on` applies referential integrity on every pooled connection.
+| Table | Purpose | Principal writer |
+| --- | --- | --- |
+| `configuration_release` | Immutable draft/published/retired versions | Configuration use case |
+| `payment_method_configuration` | Eligibility, order, thresholds, channels, EN/JA copy | Configuration use case |
+| `customer` | Local customer identity/reference | Checkout/MIT bootstrap |
+| `application_record` | Policy/application, amount, plan, customer, chosen configuration version | Checkout |
+| `payment_instrument` | Masked provider reference, lifecycle, optimistic version, Primary/Backup role | Successful registration and preference command |
+| `payment_transaction` | Root financial thread and current canonical projection | Checkout, MIT, batch orchestration |
+| `payment_resource` | Authorization, capture, debit, transfer, refund, or dispute child reference | Provider result/inbound processing |
+| `payment_event` | Append-only business and transport evidence | Every state-changing use case |
+| `provider_exchange` | Sanitized outbound request and inbound response paired to an event | GMO adapter result persistence |
+| `inbound_message` | Deduplicated webhook/protocol envelope and linkage state | Webhook receiver |
+| `idempotency_record` | Command key, request fingerprint, execution status, linked result | Checkout/MIT command reservation |
+| `debit_batch` | Monthly Koza cycle/submission state | Koza batch use case |
+| `debit_batch_item` | One Koza instrument and transaction per requested debit | Koza batch use case |
+| `reconciliation_file` | Filename, checksum, import/archive state | SFTP importer |
+| `reconciliation_row` | Sanitized parsed row and matching state | Reconciliation parser |
+| `reconciliation_match` | Agreement/discrepancy linked to a transaction | Reconciliation matcher |
+| `job_attempt` | Lease, attempt count, next attempt, terminal reason | Background workers |
+| `system_feature_configuration` | Safe persisted feature/business flags | Configuration bootstrap |
+| `retry_policy_configuration` | Named retry settings for controlled operations | Configuration bootstrap |
 
-Hikari uses at most four connections. A larger pool does not give SQLite more writers and can make contention worse.
+`V3__provider_reference_lookup.sql` indexes provider resource references so browser returns and asynchronous messages can find the original thread without a table scan.
 
-## Current schema
+## Transaction-thread model
 
-### `configuration_release`
+`payment_transaction` is the root. Its `canonical_state` is a fast projection; `payment_event` is the ordered audit history. `provider_exchange` attaches the precise sanitized request/response pair to the event that interpreted it.
 
-Represents an immutable configuration version. The partial unique index permits exactly one row with `status = 'PUBLISHED'`. Future editing will create a draft and publish it atomically; existing transactions retain the version that determined their behavior.
+Later lifecycle activity is never detached:
 
-| Column | Meaning |
-| --- | --- |
-| `id` | Local technical identifier |
-| `version` | Monotonically increasing public version |
-| `status` | `DRAFT`, `PUBLISHED`, or `RETIRED` |
-| `published_at` | UTC publication timestamp; absent for a draft |
-| `published_by` | Sanitized actor identifier |
-| `created_at` | UTC creation timestamp generated by SQLite |
+```text
+payment_transaction
+  payment_event: submitted
+    provider_exchange: authorization request/response
+  payment_event: captured
+    provider_exchange: capture request/response
+  payment_event: refund requested
+    provider_exchange: refund request/response
+  payment_event: webhook received
+  payment_event: chargeback reported
+  payment_event: SFTP reconciliation matched
+```
 
-### `payment_method_configuration`
+Provider IDs can appear on `payment_transaction` and `payment_resource`. All correlation paths resolve back to the same local root.
 
-Stores one method rule inside one release. `(release_id, code)` and `(release_id, display_order)` are unique, preventing duplicate methods or ambiguous ordering.
+## Configuration read/write behavior
 
-The row contains English/Japanese presentation copy, enabled state, recurring and monthly-only flags, minimum/maximum JPY amounts, the special non-eKYC ceiling, supported distribution channels, and display order. Channel values are stored as a constrained application-level CSV in this first slice; a later migration may normalize them when configuration editing is implemented.
+Checkout first resolves the single `PUBLISHED` release, then reads method rows using that fixed release ID. It cannot mix methods from two versions while publication occurs.
 
-## Read interaction
+Editing creates or replaces one `DRAFT` release. Publishing runs as a short transaction that retires the previous published row and publishes the draft. Transactions retain their configuration version for later explanation.
 
-`SQLiteCheckoutConfigurationRepository` first resolves the single published release and then reads all method rows using that fixed release ID. This prevents a checkout decision from mixing rows across two releases if a publish happens concurrently.
+## Payment command interaction
 
-`CheckoutEligibilityService` applies business rules after the repository returns the immutable release. SQLite and JDBC do not decide customer eligibility; this keeps policy behavior fast to unit-test and independent of storage technology.
+The command pattern is deliberately split around network I/O:
 
-## Write and lock rules for future slices
+1. Validate input and reserve an idempotency record plus local transaction/event in a short database transaction.
+2. Commit.
+3. Call GMO without holding a database lock.
+4. Persist sanitized outcome, provider exchanges, resources, instrument changes, and idempotency completion in another short transaction.
+5. If the provider result is ambiguous, retain `UNKNOWN`/attention evidence and use inquiry; do not repeat the financial write.
 
-1. Begin a short transaction, validate current state, and persist an intent/idempotency record.
-2. Commit before any GMO, webhook-delivery, SFTP, or other network call.
-3. Perform the network operation with a bounded provider timeout.
-4. Begin a new short transaction and append the sanitized result/event.
-5. On `SQLITE_BUSY`, use `SQLiteLockRetryExecutor`; stop after the configured attempt limit and surface a retryable service error.
+This makes process restart recoverable and avoids turning a slow provider into a SQLite write lock.
 
-Never sleep inside a database transaction. Never automatically repeat an uncertain financial request solely because a database write failed. Recover from the idempotency record and provider inquiry first.
+## Instrument role invariants
 
-## Backup and inspection
+Partial unique indexes permit at most one active `PRIMARY` and one active `BACKUP` per customer. Application validation also ensures that Primary and Backup differ and belong to the selected customer. On successful reusable-method registration, the newest instrument becomes Primary, the previous Primary becomes Backup, and an older Backup is cleared.
 
-Stop application writers or use SQLite's online backup API before copying the database. Do not publish runtime `.db`, `-wal`, or `-shm` files. They may contain customer, transaction, or provider evidence even when UI fields appear masked.
+These labels currently drive operator visibility and future scheduling decisions. Automatic fallback charging is intentionally not performed without an explicit payment-run policy.
+
+## Lock handling
+
+SQLite permits multiple readers but serializes writers. The implementation uses several layers rather than relying on one setting:
+
+- WAL mode for concurrent readers during commits.
+- `busy_timeout=5000` on every connection for short lock bursts.
+- Foreign keys enabled on every connection.
+- Hikari pool capped at four; a larger pool does not create more SQLite writers.
+- Short application transactions with no network calls or sleeps inside them.
+- Optimistic version columns for mutable projections.
+- `SQLiteLockRetryExecutor` for bounded exponential backoff with jitter on recognized busy/locked failures.
+- Idempotency records so a caller can safely retry a local command after lock exhaustion.
+- Single controlled scheduler paths for SFTP/batch maintenance rather than concurrent fan-out writers.
+
+After retry exhaustion, the operation fails visibly with a retryable service error. It is never silently discarded.
+
+## Webhook and SFTP deduplication
+
+Webhook bodies are sanitized and hashed. Re-delivery of the same payload returns the existing inbound record and does not append the lifecycle transition twice.
+
+SFTP imports deduplicate at two levels:
+
+- file checksum/identity prevents importing the same file twice;
+- normalized row identity prevents double-applying repeated transaction results.
+
+Unmatched or conflicting evidence remains stored for operator review. Reconciliation never overwrites a prior provider response merely to make sources agree.
+
+## Inspection
+
+For local debugging only:
+
+```bash
+sqlite3 backend/bootstrap/runtime/gmo-payments.db '.tables'
+sqlite3 backend/bootstrap/runtime/gmo-payments.db \
+  'select transaction_id, canonical_state, updated_at from payment_transaction order by updated_at desc limit 10;'
+```
+
+Do not query or copy a production database into a public issue or repository. Operator screens are the preferred sanitized inspection path.
+
+## Backup, restore, and WAL maintenance
+
+Use SQLite's online backup API or `sqlite3 .backup` while the application is healthy. Do not copy only the `.db` file while writers are active because committed data may still be in `-wal`. For an offline copy, stop writers and preserve the database together with any required WAL/SHM sidecars before opening it.
+
+Test restore procedures, Flyway validation, disk capacity, WAL checkpoint behavior, and retention in the target environment. SQLite is suitable for the reference deployment and bounded local workloads; sustained multi-instance or high-write deployments should move the persistence port to a server database.
+
+Runtime `.db`, `-wal`, `-shm`, import, and export files are Git-ignored because sanitized operational data may still be confidential.

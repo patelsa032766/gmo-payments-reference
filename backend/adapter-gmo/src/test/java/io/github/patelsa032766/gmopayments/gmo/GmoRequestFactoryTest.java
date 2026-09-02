@@ -26,9 +26,33 @@ class GmoRequestFactoryTest {
 
     @Test
     void omitsWebhookUrlWhenWebhooksAreDisabled() {
-        var payload = factory.payPayCharge(facts, "AUTH");
+        var payload = factory.payPayRecurringRegistration(facts);
         assertThat(payload.get("merchant").toString()).doesNotContain("webhookUrl");
-        assertThat(payload.toString()).contains("https://public.example/api/v1/gmo/returns/paypay");
+        assertThat(payload.toString()).contains(
+                "https://public.example/api/v1/gmo/returns/paypay-registration");
+    }
+
+    @Test
+    void recurringPayPayStartsWithConsentAndUsesAnAmountFreeMitOrder() {
+        var payload = factory.payPayRecurringRegistration(facts);
+
+        assertThat(payload.toString()).contains("walletAuthorizationInformation")
+                .contains("createNewMember=true")
+                .contains("transactionType=MIT")
+                .doesNotContain("amount=");
+        assertThat(factory.orderInquiry("access-123")).containsEntry("accessId", "access-123");
+    }
+
+    @Test
+    void storeCardRefersToTheSuccessfulChargeWithoutCardData() {
+        var payload = factory.storeCard("charge-access", "CUST-1", "Aiko Tanaka");
+
+        assertThat(payload).containsKey("merchant");
+        assertThat(payload.toString()).contains("accessId=charge-access")
+                .contains("memberId=CUST-1")
+                .contains("setDefault=true")
+                .doesNotContain("cardNumber")
+                .doesNotContain("tokenizedCard");
     }
 
     @Test

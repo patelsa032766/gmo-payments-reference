@@ -27,6 +27,7 @@ public class GmoProperties {
     private String protocolNotificationUrl = "";
     private boolean webhooksEnabled;
     private String webhookIngressToken = "";
+    private final Retry retry = new Retry();
     private final Merchant merchant = new Merchant();
 
     public boolean isLiveCallsEnabled() { return liveCallsEnabled; }
@@ -59,6 +60,7 @@ public class GmoProperties {
     public void setWebhooksEnabled(boolean value) { this.webhooksEnabled = value; }
     public String getWebhookIngressToken() { return webhookIngressToken; }
     public void setWebhookIngressToken(String value) { this.webhookIngressToken = value; }
+    public Retry getRetry() { return retry; }
     public Merchant getMerchant() { return merchant; }
 
     public String browserReturnBaseUrl() {
@@ -128,5 +130,22 @@ public class GmoProperties {
         public void setContactPhone(String value) { this.contactPhone = value; }
         public String getContactOpeningHours() { return contactOpeningHours; }
         public void setContactOpeningHours(String value) { this.contactOpeningHours = value; }
+    }
+
+    /**
+     * Retry policy for read-only GMO inquiries only. Financial requests are
+     * intentionally excluded because a timeout can hide a successful charge.
+     */
+    public static class Retry {
+        private int safeReadMaxAttempts = 3;
+        private long initialDelayMs = 200;
+        private long maxDelayMs = 2_000;
+
+        public int getSafeReadMaxAttempts() { return safeReadMaxAttempts; }
+        public void setSafeReadMaxAttempts(int value) { this.safeReadMaxAttempts = value; }
+        public long getInitialDelayMs() { return initialDelayMs; }
+        public void setInitialDelayMs(long value) { this.initialDelayMs = value; }
+        public long getMaxDelayMs() { return maxDelayMs; }
+        public void setMaxDelayMs(long value) { this.maxDelayMs = value; }
     }
 }

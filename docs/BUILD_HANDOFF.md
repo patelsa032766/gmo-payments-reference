@@ -1,77 +1,79 @@
 # Build Handoff
 
-Status: implementation started from approved mock baseline `20260901-28`; foundation vertical slice complete.
+Status: functional reference build implemented from approved mock baseline `20260901-28`.
 
-## Implemented foundation (1 September 2026)
+## Delivered
 
-- Java 21 / Spring Boot 4.1.1 multi-module build with a pinned Maven wrapper
-- Provider-independent method and configuration domain records
-- Pure application eligibility service and unit tests
-- Flyway SQLite migration for published configuration and method rules
-- SQLite JDBC settings for WAL, foreign keys, bounded busy waiting, and a bounded lock-retry helper
-- Versioned Checkout and active-configuration REST endpoints with Problem Details errors
-- Angular 22.1 shell with separate Checkout, Configuration, API & Webhooks, and MIT routes
-- API-connected Checkout and Configuration pages
-- Responsive operator-shaped foundation pages for transaction timelines and MIT
-- Passing backend tests, Angular tests, and Angular production build
+- Java 21 / Spring Boot 4.1.1 multi-module Maven build with checked-in wrapper.
+- Angular 22 application reproducing the separate Checkout, Configuration, API & Webhooks, and MIT workspaces.
+- Independently runnable static mock retained in `ui-mock/`.
+- Flyway SQLite schema for configuration, applications, instruments, transactions, events, provider exchanges, inbound messages, idempotency, Koza batches, SFTP reconciliation, and jobs.
+- Draft/publish configuration with enablement, recurring/monthly rules, thresholds, order, channels, eKYC rule, and Japanese/English copy.
+- Method-specific checkout accordion for enabled and disabled method configurations.
+- GMO OpenAPI and idPass adapters for Card, PayPay, real-time bank debit, Koza Furikae Select, Kombini, Pay-easy, and Furikomi.
+- Card authorization plus store-card; PayPay account authorization plus first authorization; real-time bank registration plus immediate debit.
+- Combined Koza registration plus first-premium Furikomi instruction journey.
+- Saved-method Primary/Backup preferences, individual MIT, and monthly Koza batch submission.
+- Chronological transaction thread with paired outbound request/inbound response evidence.
+- Optional edge-authenticated webhook ingestion and independent pinned-host SFTP import.
+- Safe-read inquiry retry with bounded jitter; no automatic retry of ambiguous financial writes.
+- Deterministic simulation default, operator action authentication, payload sanitization, RFC Problem Details, health checks, and rich developer documentation.
 
-No live GMO, webhook, SFTP, or financial command is present in this foundation slice.
+## Baseline invariants
 
-## Non-negotiable baseline
+- Do not replace `ui-mock`; create a new mock baseline before intentionally changing approved UX.
+- Keep real-time bank debit (`bank_direct_realtime`) and Koza Furikae Select (`koza_furikae_select`) separate in domain codes, provider mappings, storage, UI labels, MIT paths, and reporting.
+- Never send raw card data to Spring or persist it anywhere in this application.
+- Never infer financial success from a browser return alone.
+- Keep every lifecycle event on the original root transaction thread.
+- Preserve exactly one Primary and at most one distinct Backup active instrument per customer.
+- Never hold a SQLite transaction open across provider or SFTP I/O.
+- Never automatically repeat an uncertain financial write.
 
-- Preserve `ui-mock` as the runnable design reference.
-- Build Checkout, Configuration, API & Webhooks, and MIT as separate Angular routes/workspaces.
-- Reproduce behavior, hierarchy, responsive layout, English/Japanese copy, and low-weight typography before proposing visual changes.
-- Keep all prototype data synthetic. Do not copy credentials, tunnels, database files, or provider responses from another local project.
-- Keep real-time bank debit and Koza Furikae Select separate in code, storage, configuration, and operator language.
+## Verification gate
 
-## Implementation sequence
+Before merging or publishing:
 
-1. Establish the multi-module Java build, Angular workspace, shared formatting, static analysis, test conventions, and continuous-integration commands.
-2. Implement provider-independent domain types, explicit state machines, use-case ports, error taxonomy, idempotency, and unit tests.
-3. Add Flyway-managed SQLite schema, WAL/busy-timeout configuration, repositories, lock retry behavior, and migration/concurrency tests.
-4. Implement configuration drafts/releases and payment-method eligibility APIs; build the Configuration route and reproduce the approved Checkout filtering/order behavior.
-5. Implement Checkout orchestration with simulated provider adapters first, including all success, failure, cancellation, and unknown/inquiry states.
-6. Implement the combined Koza registration + first-premium Furikomi workflow as one customer journey with two linked backend operations.
-7. Add durable transaction/event/provider-exchange storage and build the API & Webhooks timeline/inspector.
-8. Implement authenticated webhook receivers behind feature flags, followed by SFTP acquisition, parsing, deduplication, and reconciliation.
-9. Implement stored-instrument roles, individual MIT execution, removal, lifecycle actions, and monthly Koza batch fan-out/async results.
-10. Add production-safe GMO adapters operation by operation using official contract fixtures; keep live mode disabled until configuration, secrets, and sandbox validation are complete.
-11. Complete documentation, architecture decision records, local setup, troubleshooting, recovery, security review, and public-repository secret/dependency scans.
+```bash
+./scripts/check.sh
+git status --short
+```
 
-## Definition of done for each slice
+Additionally verify in simulation mode:
 
-Every vertical slice must include:
+1. All four checkout accordions expand.
+2. A synthetic card checkout reaches Confirmation.
+3. The new transaction appears first in `/operations` with customer and provider events.
+4. Configuration creates a draft, can discard it, and publishes only with an operator token.
+5. MIT shows Primary and Backup and rejects the same instrument in both roles.
+6. Koza items can be selected and submitted only through the monthly batch workflow.
+7. Disabled webhooks return 404 and disabled SFTP makes no connection.
+8. No `.env.local`, database/WAL, private key, tunnel config, or downloaded reconciliation file is tracked.
 
-- Domain behavior and state-transition tests
-- Application use case with an idempotency strategy
-- SQLite migration and repository tests
-- REST contract and error responses
-- Angular route/components with responsive and accessibility checks
-- Sanitized operational events visible in the transaction thread
-- Feature-flag/configuration documentation
-- Failure, timeout/unknown, retry/inquiry, and restart behavior
-- Developer-facing comments where the reasoning or provider constraint is not obvious
+Live GMO validation is a separate explicit gate because it can create sandbox financial records. Test one product at a time with synthetic identities and inspect the persisted transaction thread before enabling the next product.
 
-Comments should explain invariants, risks, and protocol decisions. They should not narrate self-evident syntax.
+## Production-owner decisions
 
-## First build milestone
+The code is intentionally runnable without prescribing an organization's platform. Before production use, decide and document:
 
-The first runnable milestone should use simulated provider adapters and deliver:
+- customer/operator identity and role model replacing the local shared operator token;
+- ingress topology, direct-origin restriction, rate limiting, and webhook source controls;
+- exact GMO product versions, enabled banks/stores, error-code matrix, cutoff calendar, and sandbox-to-production promotion;
+- retention/redaction for provider exchanges, webhooks, SFTP rows, and audit events;
+- RPO/RTO, SQLite online backup/checkpoint monitoring, or migration to a server database;
+- metrics/log export, alert thresholds, unresolved-unknown and reconciliation queues;
+- SFTP file specification, timezone/cutoff semantics, archive ownership, and key rotation;
+- refund/capture/void/chargeback operator permissions and any four-eyes approval requirement;
+- dependency/secret scanning and public-repository release automation.
 
-- Spring Boot health endpoint and SQLite migration on startup
-- Versioned configuration read/draft/publish API
-- Angular shell with the four approved routes
-- Checkout summary and eligibility-driven method list matching the mock
-- Persistent application/payment attempt/event records
-- Deterministic test outcomes for success, failure, cancellation, and unknown result
-- Local developer commands and automated tests documented in the root README
+## Recommended next engineering slices
 
-No real GMO, webhook, SFTP, or financial call is required for this first milestone.
+1. Add contract fixtures captured from the account's current GMO sandbox documentation for every enabled product.
+2. Add repository lock-contention and process-restart integration tests around unknown outcomes.
+3. Replace the local operator token with real identity and authorization.
+4. Add explicit capture/void/refund operator commands when the policy-issuance workflow is integrated.
+5. Add scheduled inquiry jobs for unknown results and operational alerting.
+6. Validate the merchant's actual SFTP layout and add exact parser fixtures before turning on scheduled polling.
+7. Add deployment manifests and end-to-end tests for the chosen public HTTPS edge.
 
-## Decisions still requiring owner input before public release
-
-- Authentication approach for operator/admin routes
-- Supported operating systems and deployment target
-- Retention period for event payloads, webhook messages, and reconciliation files
-- Exact GMO sandbox credentials and SFTP schedule supplied only through private deployment configuration
+These are production-hardening/integration decisions, not missing mock screens. The current app is a complete functional reference in simulation mode and contains the live adapter boundaries needed for controlled sandbox validation.

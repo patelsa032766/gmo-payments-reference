@@ -52,6 +52,10 @@ gmo:
   site-pass: ${GMO_SITE_PASS:}
   public-base-url: ${DEV_PUBLIC_BASE_URL:https://payments.example.com}
   browser-return-base-url: ${GMO_BROWSER_RETURN_BASE_URL:}
+  # Where the backend redirects the customer's browser after it has safely
+  # completed the provider continuation. This is deliberately independent of
+  # the public callback/tunnel URL.
+  customer-app-base-url: ${GMO_CUSTOMER_APP_BASE_URL:http://127.0.0.1:4200}
   openapi-webhook-url: ${GMO_OPENAPI_WEBHOOK_URL:}
   protocol-notification-url: ${GMO_PROTOCOL_NOTIFICATION_URL:}
   webhooks-enabled: ${GMO_WEBHOOKS_ENABLED:false}
@@ -59,6 +63,12 @@ gmo:
   # reverse proxy to inject this value as X-Webhook-Ingress-Token. Never put the
   # value in source control or in a URL/query string.
   webhook-ingress-token: ${GMO_WEBHOOK_INGRESS_TOKEN:}
+  retry:
+    # Applied only to authenticated inquiries. Never automatically retry a
+    # financial write: inquire first when its outcome is unknown.
+    safe-read-max-attempts: ${GMO_SAFE_READ_MAX_ATTEMPTS:3}
+    initial-delay-ms: ${GMO_SAFE_READ_INITIAL_DELAY_MS:200}
+    max-delay-ms: ${GMO_SAFE_READ_MAX_DELAY_MS:2000}
 
   merchant:
     name: ${GMO_MERCHANT_NAME:Example Insurance}
@@ -75,3 +85,24 @@ gmo:
 # operator supplies it only for an explicit mutation; it is never persisted.
 operator:
   api-token: ${OPERATOR_API_TOKEN:}
+
+# SFTP is an independent reconciliation path, not a substitute authentication
+# mechanism for webhooks. It is off by default. When enabled, a pinned
+# known_hosts file and exactly one authentication mode are mandatory.
+reconciliation:
+  sftp:
+    enabled: ${SFTP_RECONCILIATION_ENABLED:false}
+    host: ${SFTP_HOST:}
+    port: ${SFTP_PORT:22}
+    username: ${SFTP_USERNAME:}
+    password: ${SFTP_PASSWORD:}
+    private-key-path: ${SFTP_PRIVATE_KEY_PATH:}
+    private-key-passphrase: ${SFTP_PRIVATE_KEY_PASSPHRASE:}
+    known-hosts-path: ${SFTP_KNOWN_HOSTS_PATH:}
+    incoming-path: ${SFTP_INCOMING_PATH:/incoming}
+    archive-path: ${SFTP_ARCHIVE_PATH:/archive}
+    ready-marker-suffix: ${SFTP_READY_MARKER_SUFFIX:.ok}
+    filename-regex: ${SFTP_FILENAME_REGEX:^gmo-reconciliation-[A-Za-z0-9._-]+\\.(csv|tsv)$}
+    max-file-bytes: ${SFTP_MAX_FILE_BYTES:10485760}
+    connect-timeout-ms: ${SFTP_CONNECT_TIMEOUT_MS:10000}
+    poll-interval-ms: ${SFTP_POLL_INTERVAL_MS:300000}

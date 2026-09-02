@@ -22,6 +22,7 @@
     <module>domain</module>
     <module>application</module>
     <module>adapter-gmo</module>
+    <module>adapter-sftp</module>
     <module>adapter-persistence</module>
     <module>adapter-web</module>
     <module>bootstrap</module>

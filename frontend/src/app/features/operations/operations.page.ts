@@ -15,6 +15,13 @@ export class OperationsPage implements OnInit {
   protected readonly failed = signal(false);
   protected readonly search = signal(''); protected readonly status = signal(''); protected readonly method = signal(''); protected timezone = '+0900';
   protected timezoneLabel(): string { return this.timezone === '+0900' ? 'Tokyo' : this.timezone === '+0000' ? 'UTC' : 'Los Angeles'; }
+  protected methodLabel(method: string): string {
+    return ({
+      CARD: 'Card', PAYPAY: 'PayPay', BANK_DIRECT_REALTIME: 'Real-time bank debit',
+      KOZA_FURIKAE_SELECT: 'Koza Furikae', KOMBINI: 'Convenience store',
+      PAYEASY: 'Pay-easy', FURIKOMI: 'Bank transfer',
+    } as Record<string, string>)[method] ?? method;
+  }
   protected readonly filtered = computed(() => this.rows().filter(row => {
     const query = this.search().trim().toLowerCase();
     return (!query || [row.transactionId,row.applicationNumber,row.customerName,row.customerCode,row.merchantReference]

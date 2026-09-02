@@ -50,8 +50,14 @@ public final class CheckoutPaymentService {
             String summary = exception.outcomeUnknown()
                     ? "Provider outcome is unknown; inquiry is required before retry"
                     : "Provider rejected or could not complete the payment";
-            return repository.recordFailure(reservation.context(), state, summary, exception.outcomeUnknown());
+            return repository.recordFailure(reservation.context(), state, summary,
+                    exception.outcomeUnknown(), exception.evidence());
         }
+    }
+
+    public PaymentSubmissionResult find(String transactionId) {
+        return repository.findSubmission(transactionId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown payment: " + transactionId));
     }
 
     private static String fingerprint(String applicationNumber, PaymentMethodCode method,

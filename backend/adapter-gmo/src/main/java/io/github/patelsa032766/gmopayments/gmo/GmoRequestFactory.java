@@ -51,6 +51,26 @@ public class GmoRequestFactory {
                                 "useTds2", false, "paymentMethod", "ONE_TIME")));
     }
 
+    /**
+     * Registers the card used by a successful charge as an on-file card.
+     *
+     * <p>GMO deliberately accepts the successful charge access ID rather than
+     * raw PAN data here. This keeps the Java service outside the path of
+     * sensitive card details and lets the tokenized checkout authorize and
+     * save the card in one customer journey.</p>
+     */
+    public Map<String, Object> storeCard(String chargeAccessId, String memberId, String memberName) {
+        return Map.of(
+                "merchant", merchant(null),
+                "creditStoringInformation", Map.of(
+                        "referrer", Map.of("accessId", chargeAccessId),
+                        "onfileCardOptions", Map.of(
+                                "memberId", memberId,
+                                "memberName", memberName,
+                                "createNewMember", true,
+                                "setDefault", true)));
+    }
+
     public Map<String, Object> payPayCharge(CheckoutFacts facts, String authorizationMode) {
         return Map.of(
                 "merchant", merchant("/api/v1/gmo/returns/paypay?application=" + facts.applicationNumber()),
@@ -74,6 +94,11 @@ public class GmoRequestFactory {
                         "walletType", "PAYPAY",
                         "walletAuthorizationOptions", Map.of("memberId", facts.customerCode(),
                                 "memberName", facts.customerName(), "createNewMember", true)));
+    }
+
+    /** Safe, read-only verification used after an OpenAPI browser callback. */
+    public Map<String, Object> orderInquiry(String accessId) {
+        return Map.of("accessId", accessId);
     }
 
     public Map<String, Object> savedPayPayCharge(CheckoutFacts facts, String memberId,
@@ -128,6 +153,14 @@ public class GmoRequestFactory {
                 "Amount", Long.toString(facts.amountJpy()));
         addClientFields(fields, facts);
         return fields;
+    }
+
+    /** Server-side verification that an active direct-debit account exists. */
+    public Map<String, String> bankDirectInquiry(String memberId) {
+        return linkedFields(
+                "SiteID", properties.getSiteId(),
+                "SitePass", properties.getSitePass(),
+                "MemberID", memberId);
     }
 
     public Map<String, String> bankDirectExecution(CheckoutFacts facts, String accessId, String accessPass) {

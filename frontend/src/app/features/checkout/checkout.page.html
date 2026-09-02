@@ -70,6 +70,7 @@
             <dl><div><dt>Bank</dt><dd>{{ instructions['bank'] }}</dd></div><div><dt>Branch</dt><dd>{{ instructions['branch'] }}</dd></div><div><dt>Account</dt><dd>{{ instructions['accountNumber'] }}</dd></div><div><dt>Deadline</dt><dd>{{ instructions['deadline'] }}</dd></div></dl>
           }
         }
+        @if (warning()) { <p class="confirmation-warning" role="status">{{ warning() }}</p> }
         <div class="actions"><button class="secondary-button" type="button" (click)="startAgain()">Choose another method</button></div>
       </section>
     }

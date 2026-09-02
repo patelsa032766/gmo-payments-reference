@@ -1,6 +1,15 @@
 # Architecture
 
-Status: approved build direction based on UX baseline `20260901-28`.
+Status: implemented reference architecture based on locked UX baseline `20260901-28`.
+
+## 0. Decision summary
+
+- **Style:** ports-and-adapters modular monolith. This gives one deployable unit and reliable local transactions while keeping GMO, SQLite, SFTP, and HTTP replaceable.
+- **System of record:** SQLite owns local intent, canonical projections, and sanitized evidence. GMO remains authoritative for provider execution state.
+- **Consistency:** local command reservation is atomic; provider execution and local result persistence are deliberately not one distributed transaction. Idempotency, inquiry, and reconciliation close that gap.
+- **Inbound model:** webhooks are optional acceleration, browser returns are navigation signals, and SFTP is an independent reconciliation source.
+- **Safety default:** deterministic simulation; live traffic requires an explicit gate plus credentials.
+- **UI boundary:** four lazy Angular workspaces share navigation and styling but not workflow state.
 
 ## 1. Architectural goals
 
@@ -86,9 +95,9 @@ The application must return a retryable service error rather than silently dropp
 
 ## 6. Provider failure and retry policy
 
-The GMO adapter classifies results as successful, definitively failed, or unknown. Only failures documented as safe to retry are retried automatically. Timeouts and connection loss after submission are treated as unknown outcomes: perform an inquiry using the same local command/idempotency record before attempting another financial request.
+The GMO adapter classifies results as successful, definitively failed, or unknown. Financial OpenAPI writes receive stable per-local-operation provider idempotency keys. They are never automatically repeated after transport failure or provider 5xx; those outcomes remain operator-visible until inquiry establishes the result. HTTP 4xx is treated as definitive input/provider rejection.
 
-Retry policy is configuration-driven per provider operation and includes maximum attempts, base delay, ceiling, jitter, retryable error codes, and an operator-visible terminal state. The exact GMO-recommended error-code rules must be captured from the applicable official API documentation and tested as contract fixtures before live mode is enabled.
+Automatic retry is restricted to authenticated, read-only inquiries. It uses bounded exponential backoff with full jitter and retries 429/502/503/504 or transport failures up to the configured limit. Every terminal failed call is sanitized and persisted. Exact product-specific business error handling must still be validated against the merchant's current GMO contract before production enablement.
 
 ## 7. Webhooks, browser returns, inquiries, and SFTP
 
@@ -148,3 +157,63 @@ Environment-specific public URLs, the local KanjiAI/Cloudflare route, credential
 ## 11. Architecture tests
 
 The build must include dependency-boundary tests, Flyway migration tests, repository concurrency tests, idempotency tests, provider contract fixtures, webhook deduplication tests, SFTP replay tests, state-machine tests, and end-to-end scenarios corresponding to the locked mock acceptance checklist.
+
+## 12. Runtime and deployment view
+
+The reference topology is one Angular static deployment and one Spring Boot process with one local SQLite volume:
+
+```text
+Public HTTPS edge
+  /                 -> Angular static assets
+  /api, /actuator   -> Spring Boot (operator/API access policy at edge)
+  /webhooks/gmo/*   -> Spring Boot (edge injects ingress credential)
+                              |
+                    private SQLite volume
+                       /             \
+                 GMO egress       SFTP egress
+```
+
+The process should run as a single writer instance for SQLite. Horizontal application replicas require a different persistence adapter or strict ownership that guarantees only one writer. The public edge must prevent bypassing the webhook-header injection path, terminate TLS, apply request-size/rate limits, and separate operator authentication from customer checkout access.
+
+Environment/secret-manager values configure provider credentials, callback origin, ingress token, SFTP identity, and operator token. SQLite configuration releases contain business rules only and can therefore move between environments without exporting secrets.
+
+## 13. Key workflows
+
+### Card recurring checkout
+
+```text
+Angular -> GMO MP Token JS: tokenize PAN/CVC
+Angular -> Spring: MP token + holder + Idempotency-Key
+Spring -> SQLite: reserve transaction/idempotency event
+Spring -> GMO /credit/charge: AUTH
+Spring -> GMO /credit/storeCard: successful charge accessId
+Spring -> SQLite: authorization, both exchanges, reusable instrument
+Spring -> Angular: confirmation
+```
+
+Failure to store the card after a successful authorization marks the transaction for attention but never mislabels or automatically repeats the financial authorization.
+
+### PayPay recurring checkout
+
+```text
+Spring -> GMO /wallet/authorizeAccount -> customer redirect
+GMO -> browser return envelope
+Spring -> GMO /order/inquiry -> require REGISTER
+Spring -> GMO /wallet/on-file/charge -> first AUTH
+Spring -> SQLite -> reusable PayPay instrument + complete thread
+```
+
+### Koza enrollment and later collection
+
+```text
+Checkout: register Koza mandate -> authoritative result inquiry
+          -> create first-premium Furikomi instructions
+Monthly:  operator batch -> one GMO debit request per selected mandate
+          -> async webhook and/or SFTP results update each original thread
+```
+
+Koza and real-time bank debit share neither product code nor financial state machine.
+
+## 14. Known production hardening decisions
+
+The reference uses a shared operator token to make local workflows runnable. A production deployment must replace it with organization identity, authorization, CSRF/session policy, audit attribution, and role enforcement. Product contracts, callback allowlists, retention periods, observability export, backup objectives, disaster recovery, and a server database decision remain deployment-owner responsibilities.

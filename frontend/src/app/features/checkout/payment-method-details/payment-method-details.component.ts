@@ -60,11 +60,11 @@ export class PaymentMethodDetailsComponent {
 
   protected readonly deliveryOptions = ['EMAIL', 'LINE', 'SMS'] as const;
   protected readonly delivery = signal<'EMAIL' | 'LINE' | 'SMS'>('EMAIL');
-  protected readonly instructionsIssued = signal(false);
   protected readonly details: Record<string, unknown> = {
     cardNumber: '', expiry: '', securityCode: '', holderName: '', authorizationMode: 'AUTH',
     bankCode: '0001', branchCode: '', accountType: '1', accountNumber: '',
     accountNameKana: '', accountNameKanji: '', nameKana: '', email: '', phone: '', konbiniCode: 'LAWSON',
+    deliveryChannel: 'EMAIL',
   };
   protected readonly presentation = computed(() => PRESENTATION[this.method().code] ?? {
     title: this.method().label,
@@ -84,10 +84,8 @@ export class PaymentMethodDetailsComponent {
 
   protected chooseDelivery(delivery: 'EMAIL' | 'LINE' | 'SMS'): void {
     this.delivery.set(delivery);
-  }
-
-  protected issueInstructions(): void {
-    this.instructionsIssued.set(true);
+    this.details['deliveryChannel'] = delivery;
+    this.changed();
   }
 
   protected changed(): void {

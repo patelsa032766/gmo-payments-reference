@@ -29,6 +29,11 @@
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
+      <artifactId>adapter-sftp</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
       <artifactId>adapter-web</artifactId>
       <version>${project.version}</version>
     </dependency>

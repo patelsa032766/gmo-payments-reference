@@ -20,6 +20,10 @@ import io.github.patelsa032766.gmopayments.application.port.PaymentInstrumentPre
 import io.github.patelsa032766.gmopayments.application.service.PaymentInstrumentPreferenceService;
 import io.github.patelsa032766.gmopayments.application.port.KozaBatchRepository;
 import io.github.patelsa032766.gmopayments.application.service.KozaBatchService;
+import io.github.patelsa032766.gmopayments.application.port.ReconciliationFileSource;
+import io.github.patelsa032766.gmopayments.application.port.ReconciliationImportRepository;
+import io.github.patelsa032766.gmopayments.application.service.ReconciliationImportService;
+import io.github.patelsa032766.gmopayments.application.service.BrowserReturnService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -65,4 +69,15 @@ public class ApplicationUseCaseConfiguration {
     }
     @Bean PaymentInstrumentPreferenceService paymentInstrumentPreferenceService(PaymentInstrumentPreferenceRepository repository){return new PaymentInstrumentPreferenceService(repository);}
     @Bean KozaBatchService kozaBatchService(KozaBatchRepository batches,MitCommandRepository commands,PaymentGateway gateway){return new KozaBatchService(batches,commands,gateway);}
+
+    @Bean
+    ReconciliationImportService reconciliationImportService(ReconciliationFileSource source,
+                                                             ReconciliationImportRepository repository) {
+        return new ReconciliationImportService(source, repository);
+    }
+
+    @Bean
+    BrowserReturnService browserReturnService(PaymentCommandRepository repository, PaymentGateway gateway) {
+        return new BrowserReturnService(repository, gateway);
+    }
 }

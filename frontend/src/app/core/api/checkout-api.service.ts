@@ -29,7 +29,7 @@ export interface PaymentSubmission {
   requiresAttention: boolean;
   nextAction: PaymentNextAction;
   instructions: Record<string, unknown>;
-  replayed: boolean;
+  idempotentReplay: boolean;
 }
 
 /** Typed boundary for the public backend contract. Components never construct API URLs. */
@@ -72,5 +72,10 @@ export class CheckoutApiService {
     return this.http.post<PaymentSubmission>(
       `/api/v1/checkout/applications/${encodeURIComponent(applicationNumber)}/payments`,
       { method, details }, { headers: { 'Idempotency-Key': idempotencyKey } });
+  }
+
+  getPayment(transactionId: string): Observable<PaymentSubmission> {
+    return this.http.get<PaymentSubmission>(
+      `/api/v1/checkout/payments/${encodeURIComponent(transactionId)}`);
   }
 }

@@ -1,6 +1,7 @@
 package io.github.patelsa032766.gmopayments.gmo;
 
 import io.github.patelsa032766.gmopayments.application.service.PaymentGatewayException;
+import io.github.patelsa032766.gmopayments.domain.ProviderCallEvidence;
 
 import java.util.Map;
 
@@ -17,5 +18,11 @@ public class GmoProviderException extends PaymentGatewayException {
     public GmoProviderException(String message, Integer statusCode, boolean outcomeUnknown,
                                 boolean safeToRetry, Map<String, Object> sanitizedPayload, Throwable cause) {
         super(message, statusCode, outcomeUnknown, safeToRetry, sanitizedPayload, cause);
+    }
+
+    public GmoProviderException(String message, Integer statusCode, boolean outcomeUnknown,
+                                boolean safeToRetry, Map<String, Object> sanitizedPayload,
+                                ProviderCallEvidence evidence, Throwable cause) {
+        super(message, statusCode, outcomeUnknown, safeToRetry, sanitizedPayload, evidence, cause);
     }
 }

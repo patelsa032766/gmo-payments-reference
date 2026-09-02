@@ -45,6 +45,11 @@ public class CheckoutPaymentController {
                 idempotencyKey, request.details());
     }
 
+    @GetMapping("/payments/{transactionId}")
+    PaymentSubmissionResult payment(@PathVariable String transactionId) {
+        return payments.find(transactionId);
+    }
+
     /** Defense in depth if a future Angular regression tries to send PAN/CVC to Spring. */
     private static void rejectRawCardData(Map<String, Object> details) {
         for (String prohibited : new String[]{"cardNumber", "cardno", "pan", "cvc", "cvv", "securityCode"}) {

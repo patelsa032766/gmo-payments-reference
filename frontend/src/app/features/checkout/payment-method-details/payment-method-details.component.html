@@ -42,21 +42,30 @@
       </div>
     }
     @case ('kombini') {
-      <div class="compact-fields"><label class="field"><span>Convenience store</span><select name="store" [(ngModel)]="details['konbiniCode']" (ngModelChange)="changed()"><option value="LAWSON">Lawson</option><option value="FAMILY_MART">FamilyMart</option><option value="MINISTOP">Ministop</option></select></label><label class="field"><span>Email</span><input name="kombiniEmail" [(ngModel)]="details['email']" (ngModelChange)="changed()" autocomplete="email" placeholder="customer@example.com" /></label></div>
+      <div class="compact-fields"><label class="field field-wide"><span>Convenience store</span><select name="store" [(ngModel)]="details['konbiniCode']" (ngModelChange)="changed()"><option value="LAWSON">Lawson</option><option value="FAMILY_MART">FamilyMart</option><option value="MINISTOP">Ministop</option></select></label></div>
+      <ng-container *ngTemplateOutlet="customerContact"></ng-container>
       <ng-container *ngTemplateOutlet="instructions"></ng-container>
     }
     @case ('payeasy') {
-      <div class="compact-fields"><label class="field field-wide"><span>Email</span><input name="payeasyEmail" [(ngModel)]="details['email']" (ngModelChange)="changed()" autocomplete="email" placeholder="customer@example.com" /></label></div>
+      <ng-container *ngTemplateOutlet="customerContact"></ng-container>
       <ng-container *ngTemplateOutlet="instructions"></ng-container>
     }
     @case ('furikomi') {
-      <div class="compact-fields"><label class="field field-wide"><span>Email</span><input name="furikomiEmail" [(ngModel)]="details['email']" (ngModelChange)="changed()" autocomplete="email" placeholder="customer@example.com" /></label></div>
+      <ng-container *ngTemplateOutlet="customerContact"></ng-container>
       <ng-container *ngTemplateOutlet="instructions"></ng-container>
     }
   }
 
   <p class="method-note">{{ presentation().note }}</p>
 </section>
+
+<ng-template #customerContact>
+  <div class="compact-fields" aria-label="Payment instruction contact details">
+    <label class="field field-wide"><span>Customer name (Kana)</span><input name="instructionNameKana" [(ngModel)]="details['nameKana']" (ngModelChange)="changed()" autocomplete="name" placeholder="タナカ アイコ" /></label>
+    <label class="field"><span>Email</span><input name="instructionEmail" [(ngModel)]="details['email']" (ngModelChange)="changed()" autocomplete="email" placeholder="customer@example.com" /></label>
+    <label class="field"><span>Phone</span><input name="instructionPhone" [(ngModel)]="details['phone']" (ngModelChange)="changed()" autocomplete="tel" inputmode="tel" placeholder="09012345678" /></label>
+  </div>
+</ng-template>
 
 <ng-template #instructions>
   <div class="delivery-choice" role="group" aria-label="Instruction delivery method">
@@ -65,8 +74,4 @@
       <button type="button" [class.is-selected]="delivery() === option" (click)="chooseDelivery(option)">{{ option }}</button>
     }
   </div>
-  <button class="issue-button" type="button" (click)="issueInstructions()">{{ instructionsIssued() ? 'Refresh instructions' : 'Issue payment instructions' }}</button>
-  @if (instructionsIssued()) {
-    <section class="issued-instructions" aria-live="polite"><span class="issued-dot"></span><strong>Instructions issued</strong><span>Sent by {{ delivery() }}</span><p>Prototype values will be replaced by the sanitized GMO response.</p></section>
-  }
 </ng-template>

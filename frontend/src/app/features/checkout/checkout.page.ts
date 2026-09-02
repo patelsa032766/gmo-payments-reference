@@ -7,9 +7,10 @@ import { PaymentMethodDetailsComponent } from './payment-method-details/payment-
 /**
  * Customer-facing checkout entry point.
  *
- * This first vertical slice proves that visible methods come from the server-side
- * eligibility policy. Payment collection will be added behind method-specific
- * adapters; no component will ever receive raw GMO credentials.
+ * Visible methods come from the server-side eligibility policy and each expanded
+ * method delegates payment-specific fields to a child component. Card PAN/CVC
+ * values are exchanged for a one-use GMO token in the browser; raw credentials
+ * and card data are never submitted to this application's backend.
  */
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -27,6 +28,7 @@ export class CheckoutPage implements OnInit {
   protected readonly selectedCode = signal<string | null>(null);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
+  protected readonly warning = signal<string | null>(null);
   protected readonly confirmed = signal(false);
   protected readonly submitting = signal(false);
   protected readonly configurationVersion = signal<number | null>(null);
@@ -35,11 +37,16 @@ export class CheckoutPage implements OnInit {
   protected readonly paymentDetails = signal<Record<string, unknown>>({});
   private idempotencyKey = crypto.randomUUID();
 
-  ngOnInit(): void { this.loadMethods(); }
+  ngOnInit(): void {
+    this.loadMethods();
+    const returnedTransaction = new URLSearchParams(window.location.search).get('paymentReturn');
+    if (returnedTransaction) this.restoreReturnedPayment(returnedTransaction);
+  }
 
   protected select(code: string): void {
     this.selectedCode.set(code);
     this.error.set(null);
+    this.warning.set(null);
     this.paymentDetails.set({});
     this.idempotencyKey = crypto.randomUUID();
   }
@@ -75,6 +82,7 @@ export class CheckoutPage implements OnInit {
     this.confirmed.set(false);
     this.selectedCode.set(null);
     this.submission.set(null);
+    this.warning.set(null);
     this.idempotencyKey = crypto.randomUUID();
   }
 
@@ -120,9 +128,64 @@ export class CheckoutPage implements OnInit {
       });
       document.body.appendChild(form); form.submit(); return;
     }
+    if (result.requiresAttention && this.isCustomerSuccess(result.state)) {
+      // A conclusive first payment must never be presented as failed merely
+      // because reusable-method setup needs operator follow-up. Retrying the
+      // financial step could create a duplicate authorization.
+      this.warning.set('Your payment completed. We may contact you if the future payment method needs attention.');
+      this.confirmed.set(true);
+      return;
+    }
     if (result.requiresAttention || ['FAILED', 'UNKNOWN'].includes(result.state)) {
       this.error.set('The payment was not completed. Please check the details or choose another method.'); return;
     }
     this.confirmed.set(true);
+  }
+
+  private restoreReturnedPayment(transactionId: string): void {
+    this.submitting.set(true);
+    this.api.getPayment(transactionId).subscribe({
+      next: result => {
+        this.submitting.set(false);
+        this.submission.set(result);
+        // Submission responses use the domain enum name while checkout options use
+        // the stable public API value. Normalize browser-return responses so the
+        // confirmation screen can recover the correct customer-facing label.
+        this.selectedCode.set(this.apiMethodCode(result.method));
+        if (result.requiresAttention && this.isCustomerSuccess(result.state)) {
+          this.warning.set('Your payment completed. We may contact you if the future payment method needs attention.');
+          this.confirmed.set(true);
+          return;
+        }
+        if (result.requiresAttention || ['FAILED', 'UNKNOWN', 'REGISTRATION_PENDING'].includes(result.state)) {
+          this.error.set(result.state === 'REGISTRATION_PENDING'
+            ? 'The bank registration is still pending. Please wait or contact support before trying again.'
+            : 'The payment was not completed. Please check the details or choose another method.');
+          return;
+        }
+        this.confirmed.set(true);
+      },
+      error: () => {
+        this.submitting.set(false);
+        this.error.set('The returned payment result could not be loaded. Please contact support.');
+      },
+    });
+  }
+
+  private apiMethodCode(value: string): string {
+    const enumToApi: Record<string, string> = {
+      CARD: 'card',
+      PAYPAY: 'paypay',
+      BANK_DIRECT_REALTIME: 'bankDirect',
+      KOZA_FURIKAE_SELECT: 'kozaFurikae',
+      KOMBINI: 'kombini',
+      PAYEASY: 'payeasy',
+      FURIKOMI: 'furikomi',
+    };
+    return enumToApi[value] ?? value;
+  }
+
+  private isCustomerSuccess(state: string): boolean {
+    return ['AUTHORIZED', 'PAID', 'INSTRUCTIONS_ISSUED', 'MANDATE_REGISTERED_TRANSFER_DUE'].includes(state);
   }
 }

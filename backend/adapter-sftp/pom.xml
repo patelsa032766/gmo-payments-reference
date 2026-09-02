@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <parent><groupId>io.github.patelsa032766.gmopayments</groupId><artifactId>gmo-payments-backend</artifactId><version>0.1.0-SNAPSHOT</version></parent>
+  <artifactId>adapter-sftp</artifactId>
+  <name>SFTP Adapter</name>
+  <description>Strict-host-key SFTP retrieval for webhook-independent reconciliation.</description>
+  <dependencies>
+    <dependency><groupId>${project.groupId}</groupId><artifactId>application</artifactId><version>${project.version}</version></dependency>
+    <dependency><groupId>org.springframework</groupId><artifactId>spring-context</artifactId></dependency>
+    <dependency><groupId>org.slf4j</groupId><artifactId>slf4j-api</artifactId></dependency>
+    <dependency><groupId>com.github.mwiede</groupId><artifactId>jsch</artifactId><version>2.28.6</version></dependency>
+  </dependencies>
+</project>

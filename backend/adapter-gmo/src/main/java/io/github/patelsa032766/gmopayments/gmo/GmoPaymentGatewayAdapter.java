@@ -2,12 +2,18 @@ package io.github.patelsa032766.gmopayments.gmo;
 
 import io.github.patelsa032766.gmopayments.application.port.PaymentGateway;
 import io.github.patelsa032766.gmopayments.domain.PaymentExecutionContext;
+import io.github.patelsa032766.gmopayments.domain.PaymentContinuationResult;
 import io.github.patelsa032766.gmopayments.domain.PaymentGatewayResult;
 import io.github.patelsa032766.gmopayments.domain.PaymentNextAction;
+import io.github.patelsa032766.gmopayments.domain.ProviderCallEvidence;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 /**
  * Executes customer checkout against GMO or a deterministic local adapter.
@@ -32,16 +38,16 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
     }
 
     @Override
-    public PaymentGatewayResult executeCheckout(PaymentExecutionContext context, Map<String, Object> details) {
-        if (!properties.isLiveCallsEnabled()) return simulate(context);
+    public PaymentContinuationResult executeCheckout(PaymentExecutionContext context, Map<String, Object> details) {
+        if (!properties.isLiveCallsEnabled()) return single(simulate(context));
         return switch (context.method()) {
             case CARD -> card(context, details);
             case PAYPAY -> payPay(context, details);
-            case BANK_DIRECT_REALTIME -> bankDirectRegistration(context, details);
-            case KOZA_FURIKAE_SELECT -> kozaRegistration(context, details);
-            case KOMBINI -> cash(context, details, "KONBINI");
-            case PAYEASY -> cash(context, details, "PAYEASY");
-            case FURIKOMI -> cash(context, details, "BANK_TRANSFER_GMO_AOZORA");
+            case BANK_DIRECT_REALTIME -> single(bankDirectRegistration(context, details));
+            case KOZA_FURIKAE_SELECT -> single(kozaRegistration(context, details));
+            case KOMBINI -> single(cash(context, details, "KONBINI"));
+            case PAYEASY -> single(cash(context, details, "PAYEASY"));
+            case FURIKOMI -> single(cash(context, details, "BANK_TRANSFER_GMO_AOZORA"));
         };
     }
 
@@ -99,6 +105,227 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
                 GmoSanitizer.sanitize(asObjectMap(execution)), result.sanitizedPayload());
     }
 
+    @Override
+    public PaymentContinuationResult continueCheckout(PaymentExecutionContext context,
+                                                      Map<String, Object> browserReturn) {
+        if (!properties.isLiveCallsEnabled()) {
+            return new PaymentContinuationResult(simulate(context), List.of());
+        }
+        return switch (context.method()) {
+            case PAYPAY -> completePayPay(context, browserReturn);
+            case BANK_DIRECT_REALTIME -> completeBankDirect(context, browserReturn);
+            case KOZA_FURIKAE_SELECT -> completeKozaRegistration(context, browserReturn);
+            default -> throw new IllegalArgumentException("This method has no browser-return continuation");
+        };
+    }
+
+    /**
+     * Verifies the PayPay consent result and immediately authorizes the first
+     * premium against the newly registered on-file wallet.
+     *
+     * <p>The callback envelope is only a locator. GMO's order inquiry is the
+     * authority for the {@code REGISTER} state. The financial write happens
+     * only after that server-to-server check succeeds.</p>
+     */
+    private PaymentContinuationResult completePayPay(PaymentExecutionContext context,
+                                                      Map<String, Object> browserReturn) {
+        String registrationAccessId = firstObject(browserReturn, "accessId", "AccessID", "AccessId");
+        if (blank(registrationAccessId)) {
+            throw new GmoProviderException("PayPay return omitted the GMO access ID",
+                    400, false, false, Map.of(), null);
+        }
+
+        List<ProviderCallEvidence> exchanges = new ArrayList<>();
+        var inquiryRequest = requests.orderInquiry(registrationAccessId);
+        var inquiry = openApi.post("/order/inquiry", inquiryRequest, false);
+        String registrationStatus = status(inquiry.rawPayload(), "UNPROCESSED").toUpperCase();
+        exchanges.add(evidence("OPENAPI", "OrderInquiry", "/order/inquiry",
+                inquiryRequest, inquiry, registrationStatus));
+
+        if (!"REGISTER".equals(registrationStatus)) {
+            String state = switch (registrationStatus) {
+                case "REQSUCCESS", "AUTHPROCESS", "UNPROCESSED" -> "REGISTRATION_PENDING";
+                default -> "FAILED";
+            };
+            var outcome = new PaymentGatewayResult(state, registrationStatus,
+                    context.applicationNumber(), registrationAccessId,
+                    "PAYPAY_REGISTRATION_RESULT",
+                    "REGISTRATION_PENDING".equals(state)
+                            ? "PayPay account authorization is still being confirmed"
+                            : "PayPay account authorization was not completed",
+                    false, PaymentNextAction.none(), Map.of(), "OPENAPI", "OrderInquiry",
+                    "/order/inquiry", inquiry.statusCode(), safeInt(inquiry.durationMs()),
+                    GmoSanitizer.sanitize(inquiryRequest), inquiry.sanitizedPayload());
+            return new PaymentContinuationResult(outcome, exchanges);
+        }
+
+        var chargeRequest = requests.savedPayPayCharge(facts(context), context.customerCode(), "AUTH");
+        var charge = openApi.post("/wallet/on-file/charge", chargeRequest, true,
+                providerIdempotency(context, "paypay-first-auth"));
+        var chargeOutcome = openApiResult(context, charge, chargeRequest,
+                "/wallet/on-file/charge", "WalletOnFileCharge",
+                "PayPay registered and first premium authorized");
+        exchanges.add(evidence("OPENAPI", "WalletOnFileCharge", "/wallet/on-file/charge",
+                chargeRequest, charge, chargeOutcome.canonicalState()));
+        var outcome = new PaymentGatewayResult(chargeOutcome.canonicalState(),
+                registrationStatus + "/" + chargeOutcome.providerStatus(),
+                chargeOutcome.providerOrderId(), chargeOutcome.providerAccessId(),
+                "PAYPAY_REGISTERED_AND_AUTHORIZED",
+                "PayPay registered and first premium authorized",
+                chargeOutcome.requiresAttention(), chargeOutcome.nextAction(),
+                chargeOutcome.instructions(), chargeOutcome.transport(),
+                chargeOutcome.providerOperation(), chargeOutcome.endpoint(),
+                chargeOutcome.httpStatus(), chargeOutcome.durationMs(),
+                chargeOutcome.sanitizedRequest(), chargeOutcome.sanitizedResponse());
+        return new PaymentContinuationResult(outcome, exchanges);
+    }
+
+    private PaymentContinuationResult completeBankDirect(PaymentExecutionContext context,
+                                                         Map<String, Object> browserReturn) {
+        validateBankDirectReturn(context, browserReturn);
+        String returnedStatus = value(browserReturn, "Status", value(browserReturn, "status", "FAIL"))
+                .toUpperCase();
+        if (!"REGISTER".equals(returnedStatus)) {
+            var outcome = new PaymentGatewayResult("FAILED", returnedStatus,
+                    context.applicationNumber(), firstObject(browserReturn, "TranID", "TranId"),
+                    "BANK_DIRECT_REGISTRATION_FAILED", "Bank account registration was not completed",
+                    false, PaymentNextAction.none(), Map.of(), "BROWSER_RETURN", "BankDirectStart",
+                    null, 200, 0, Map.of(), GmoSanitizer.sanitize(browserReturn));
+            return new PaymentContinuationResult(outcome, List.of());
+        }
+
+        List<ProviderCallEvidence> exchanges = new ArrayList<>();
+        var inquiryRequest = requests.bankDirectInquiry(context.customerCode());
+        var inquiry = idPass.post("SearchBankDirect.idPass", inquiryRequest, false);
+        exchanges.add(evidence("IDPASS", "SearchBankDirect", "SearchBankDirect.idPass",
+                inquiryRequest, inquiry, "REGISTERED"));
+
+        var entryRequest = requests.bankDirectEntry(facts(context));
+        var entry = idPass.post("EntryTranBankDirect.idPass", entryRequest, true);
+        exchanges.add(evidence("IDPASS", "EntryTranBankDirect", "EntryTranBankDirect.idPass",
+                entryRequest, entry, "REGISTERED"));
+        String accessId = first(entry.rawPayload(), "AccessID", "AccessId");
+        String accessPass = first(entry.rawPayload(), "AccessPass", "AccessPASS");
+        if (blank(accessId) || blank(accessPass)) {
+            throw new GmoProviderException("GMO bank-direct entry omitted access credentials",
+                    entry.statusCode(), false, false, entry.sanitizedPayload(), null);
+        }
+
+        var executionRequest = requests.bankDirectExecution(facts(context), accessId, accessPass);
+        var execution = idPass.post("ExecTranBankDirect.idPass", executionRequest, true);
+        String providerStatus = status(execution.rawPayload(), "PROCESSING");
+        String canonical = canonicalState(providerStatus);
+        exchanges.add(evidence("IDPASS", "ExecTranBankDirect", "ExecTranBankDirect.idPass",
+                executionRequest, execution, canonical));
+        var outcome = new PaymentGatewayResult(canonical, providerStatus, context.applicationNumber(), accessId,
+                "BANK_DIRECT_DEBIT_RESULT", "Bank account registered and immediate debit submitted",
+                "UNKNOWN".equals(canonical), PaymentNextAction.none(), Map.of(), "IDPASS",
+                "ExecTranBankDirect", "ExecTranBankDirect.idPass", execution.statusCode(),
+                safeInt(execution.durationMs()), GmoSanitizer.sanitize(asObjectMap(executionRequest)),
+                execution.sanitizedPayload());
+        return new PaymentContinuationResult(outcome, exchanges);
+    }
+
+    private PaymentContinuationResult completeKozaRegistration(PaymentExecutionContext context,
+                                                               Map<String, Object> browserReturn) {
+        String transactionId = firstObject(browserReturn, "TranID", "TranId", "TransactionID", "transactionId");
+        var inquiryRequest = requests.kozaRegistrationInquiry(transactionId);
+        var inquiry = idPass.post("BankAccountTranResult.idPass", inquiryRequest, false);
+        String registrationResult = first(inquiry.rawPayload(), "Result", "Status", "result", "status");
+        if (blank(registrationResult)) registrationResult = "PEND";
+        registrationResult = registrationResult.toUpperCase();
+        List<ProviderCallEvidence> exchanges = new ArrayList<>();
+        exchanges.add(evidence("IDPASS", "BankAccountTranResult", "BankAccountTranResult.idPass",
+                inquiryRequest, inquiry, registrationResult));
+
+        if (!"SUCCESS".equals(registrationResult)) {
+            String state = "PEND".equals(registrationResult) ? "REGISTRATION_PENDING" : "FAILED";
+            var outcome = new PaymentGatewayResult(state, registrationResult, context.applicationNumber(),
+                    transactionId, "KOZA_REGISTRATION_RESULT",
+                    "PEND".equals(registrationResult)
+                            ? "Koza Furikae registration is still pending"
+                            : "Koza Furikae registration was not completed",
+                    false, PaymentNextAction.none(), Map.of(), "IDPASS", "BankAccountTranResult",
+                    "BankAccountTranResult.idPass", inquiry.statusCode(), safeInt(inquiry.durationMs()),
+                    GmoSanitizer.sanitize(asObjectMap(inquiryRequest)), inquiry.sanitizedPayload());
+            return new PaymentContinuationResult(outcome, exchanges);
+        }
+
+        // The recurring mandate is now confirmed. The first premium is a
+        // distinct Furikomi transaction, issued immediately in the same user
+        // journey as required by the checkout design.
+        var cashRequest = requests.cashCharge(facts(context), "BANK_TRANSFER_GMO_AOZORA", "",
+                properties.getMerchant().getContactEmail(), properties.getMerchant().getContactPhone(), "");
+        var cash = openApi.post("/cash/charge", cashRequest, true,
+                providerIdempotency(context, "koza-first-furikomi"));
+        Map<String, Object> instructions = nested(cash.rawPayload(), "cashResult");
+        String cashStatus = status(cash.rawPayload(), "TRADING");
+        exchanges.add(evidence("OPENAPI", "CashCharge", "/cash/charge", cashRequest, cash,
+                "INSTRUCTIONS_ISSUED"));
+        var outcome = new PaymentGatewayResult("MANDATE_REGISTERED_TRANSFER_DUE",
+                registrationResult + "/" + cashStatus, context.applicationNumber(),
+                accessId(cash.rawPayload()), "KOZA_REGISTERED_FURIKOMI_ISSUED",
+                "Koza Furikae registered and first-premium transfer instructions issued", false,
+                PaymentNextAction.none(), instructions, "OPENAPI", "CashCharge", "/cash/charge",
+                cash.statusCode(), safeInt(cash.durationMs()), GmoSanitizer.sanitize(cashRequest),
+                cash.sanitizedPayload());
+        return new PaymentContinuationResult(outcome, exchanges);
+    }
+
+    private void validateBankDirectReturn(PaymentExecutionContext context, Map<String, Object> fields) {
+        String transactionId = firstObject(fields, "TranID", "TranId");
+        String siteId = firstObject(fields, "SiteID", "SiteId");
+        String memberId = firstObject(fields, "MemberID", "MemberId");
+        String status = firstObject(fields, "Status", "status");
+        if (!properties.getSiteId().equals(siteId) || !context.customerCode().equals(memberId)) {
+            throw new GmoProviderException("GMO bank-direct return did not match the reserved customer",
+                    400, false, false, Map.of(), null);
+        }
+        if ("REGISTER".equalsIgnoreCase(status)) {
+            String checkString = firstObject(fields, "CheckString", "checkString");
+            String expected = sha256(transactionId + siteId + memberId + status);
+            if (blank(checkString) || !MessageDigest.isEqual(expected.getBytes(StandardCharsets.US_ASCII),
+                    checkString.toLowerCase().getBytes(StandardCharsets.US_ASCII))) {
+                throw new GmoProviderException("GMO bank-direct return integrity check failed",
+                        400, false, false, Map.of(), null);
+            }
+        }
+    }
+
+    private static ProviderCallEvidence evidence(String transport, String operation, String endpoint,
+                                                 Map<String, ?> request, GmoHttpResult response,
+                                                 String outcome) {
+        return new ProviderCallEvidence(transport, operation, endpoint, response.statusCode(),
+                safeInt(response.durationMs()), GmoSanitizer.sanitize(new LinkedHashMap<>(request)),
+                response.sanitizedPayload(), outcome);
+    }
+
+    private static String sha256(String value) {
+        try {
+            return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    /**
+     * Stable per-local-operation key used by GMO OpenAPI's idempotency layer.
+     * Different steps in one checkout receive different keys; repeating the
+     * same reserved step after a client disconnect receives the same key.
+     */
+    private static String providerIdempotency(PaymentExecutionContext context, String operation) {
+        return sha256(context.transactionId() + "|" + operation).substring(0, 32);
+    }
+
+    private static String firstObject(Map<String, Object> source, String... keys) {
+        for (String key : keys) {
+            String value = string(source.get(key));
+            if (!blank(value)) return value.trim();
+        }
+        return null;
+    }
+
     private PaymentGatewayResult savedCard(PaymentExecutionContext context, Map<String, Object> instrument,
                                            Map<String, Object> command) {
         String mode = value(command, "authorizationMode", "CAPTURE").toUpperCase();
@@ -106,7 +333,8 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
                 value(instrument, "cardType", "CREDIT_CARD"), value(instrument, "cardId",
                         value(instrument, "instrumentReference", "")),
                 value(instrument, "cardholderName", ""), mode);
-        var result = openApi.post("/credit/on-file/charge", payload, true);
+        var result = openApi.post("/credit/on-file/charge", payload, true,
+                providerIdempotency(context, "card-mit"));
         return openApiResult(context, result, payload, "/credit/on-file/charge",
                 "CreditOnFileCharge", "Stored card payment submitted");
     }
@@ -115,7 +343,8 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
                                              Map<String, Object> command) {
         String mode = value(command, "authorizationMode", "CAPTURE").toUpperCase();
         var payload = requests.savedPayPayCharge(facts(context), required(instrument, "memberId"), mode);
-        var result = openApi.post("/wallet/on-file/charge", payload, true);
+        var result = openApi.post("/wallet/on-file/charge", payload, true,
+                providerIdempotency(context, "paypay-mit"));
         return openApiResult(context, result, payload, "/wallet/on-file/charge",
                 "WalletOnFileCharge", "Stored PayPay payment submitted");
     }
@@ -141,22 +370,99 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
                 GmoSanitizer.sanitize(asObjectMap(execution)), result.sanitizedPayload());
     }
 
-    private PaymentGatewayResult card(PaymentExecutionContext context, Map<String, Object> details) {
+    private PaymentContinuationResult card(PaymentExecutionContext context, Map<String, Object> details) {
         String token = required(details, "token");
         String holder = required(details, "holderName").toUpperCase();
         String authorizationMode = value(details, "authorizationMode", "AUTH").toUpperCase();
-        var payload = requests.cardCharge(facts(context), token, holder, authorizationMode);
-        var result = openApi.post("/credit/charge", payload, true);
-        return openApiResult(context, result, payload, "/credit/charge", "CreditCharge",
-                "Card authorization submitted");
+        var chargeRequest = requests.cardCharge(facts(context), token, holder, authorizationMode);
+        var charge = openApi.post("/credit/charge", chargeRequest, true,
+                providerIdempotency(context, "card-first-auth"));
+        var chargeOutcome = openApiResult(context, charge, chargeRequest, "/credit/charge",
+                "CreditCharge", "Card authorization submitted");
+        var exchanges = new ArrayList<ProviderCallEvidence>();
+        exchanges.add(evidence("OPENAPI", "CreditCharge", "/credit/charge",
+                chargeRequest, charge, chargeOutcome.canonicalState()));
+
+        // Only a successful authorization/capture may be used as the referrer
+        // for GMO's store-card operation.
+        if (!"AUTHORIZED".equals(chargeOutcome.canonicalState())
+                && !"PAID".equals(chargeOutcome.canonicalState())) {
+            return new PaymentContinuationResult(chargeOutcome, exchanges);
+        }
+        String accessId = chargeOutcome.providerAccessId();
+        if (blank(accessId)) {
+            var attention = withAttention(chargeOutcome,
+                    "Card payment succeeded but the reusable-card reference was missing");
+            return new PaymentContinuationResult(attention, exchanges);
+        }
+
+        var storeRequest = requests.storeCard(accessId, context.customerCode(), context.customerName());
+        try {
+            var stored = openApi.post("/credit/storeCard", storeRequest, true,
+                    providerIdempotency(context, "card-store"));
+            exchanges.add(evidence("OPENAPI", "CreditStoreCard", "/credit/storeCard",
+                    storeRequest, stored, "STORED"));
+            Map<String, Object> combined = new LinkedHashMap<>();
+            combined.put("charge", charge.sanitizedPayload());
+            combined.put("storedCard", stored.sanitizedPayload());
+            var outcome = new PaymentGatewayResult(chargeOutcome.canonicalState(),
+                    chargeOutcome.providerStatus(), chargeOutcome.providerOrderId(), accessId,
+                    "CARD_AUTHORIZED_AND_STORED", "Card authorized and saved for recurring payments",
+                    false, chargeOutcome.nextAction(), chargeOutcome.instructions(), "OPENAPI",
+                    "CreditStoreCard", "/credit/storeCard", stored.statusCode(),
+                    safeInt(stored.durationMs()), GmoSanitizer.sanitize(storeRequest), combined);
+            return new PaymentContinuationResult(outcome, exchanges);
+        } catch (GmoProviderException exception) {
+            // The financial authorization is already conclusive. A failure to
+            // store the reusable card must not mislabel that charge as failed
+            // or cause it to be sent again.
+            exchanges.add(new ProviderCallEvidence("OPENAPI", "CreditStoreCard", "/credit/storeCard",
+                    exception.statusCode(), null, GmoSanitizer.sanitize(storeRequest),
+                    exception.sanitizedPayload(), exception.outcomeUnknown()
+                            ? "STORE_OUTCOME_UNKNOWN" : "STORE_FAILED"));
+            var attention = withAttention(chargeOutcome,
+                    "Card authorized; reusable-card setup requires operator review");
+            return new PaymentContinuationResult(attention, exchanges);
+        }
     }
 
-    private PaymentGatewayResult payPay(PaymentExecutionContext context, Map<String, Object> details) {
-        String authorizationMode = value(details, "authorizationMode", "AUTH").toUpperCase();
-        var payload = requests.payPayCharge(facts(context), authorizationMode);
-        var result = openApi.post("/wallet/charge", payload, true);
-        return openApiResult(context, result, payload, "/wallet/charge", "WalletCharge",
-                "PayPay authorization submitted");
+    private PaymentContinuationResult payPay(PaymentExecutionContext context, Map<String, Object> details) {
+        var request = requests.payPayRecurringRegistration(facts(context));
+        var result = openApi.post("/wallet/authorizeAccount", request, true,
+                providerIdempotency(context, "paypay-register"));
+        Map<String, Object> order = nested(result.rawPayload(), "orderReference");
+        String accessId = string(order.get("accessId"));
+        String redirect = first(nested(result.rawPayload(), "redirectInformation"), "redirectUrl");
+        if (blank(accessId) || blank(redirect)) {
+            throw new GmoProviderException("GMO PayPay authorization omitted browser handoff fields",
+                    result.statusCode(), false, false, result.sanitizedPayload(), null);
+        }
+        var outcome = new PaymentGatewayResult("REGISTRATION_PENDING",
+                string(order.getOrDefault("status", "REQSUCCESS")),
+                context.applicationNumber(), accessId, "PAYPAY_REGISTRATION_STARTED",
+                "PayPay account authorization started", false,
+                new PaymentNextAction("REDIRECT", redirect, Map.of()), Map.of(), "OPENAPI",
+                "WalletAuthorizeAccount", "/wallet/authorizeAccount", result.statusCode(),
+                safeInt(result.durationMs()), GmoSanitizer.sanitize(request), result.sanitizedPayload());
+        return new PaymentContinuationResult(outcome, List.of(evidence("OPENAPI",
+                "WalletAuthorizeAccount", "/wallet/authorizeAccount", request, result,
+                "REGISTRATION_PENDING")));
+    }
+
+    private static PaymentContinuationResult single(PaymentGatewayResult result) {
+        var exchange = new ProviderCallEvidence(result.transport(), result.providerOperation(),
+                result.endpoint(), result.httpStatus(), result.durationMs(), result.sanitizedRequest(),
+                result.sanitizedResponse(), result.canonicalState());
+        return new PaymentContinuationResult(result, List.of(exchange));
+    }
+
+    private static PaymentGatewayResult withAttention(PaymentGatewayResult source, String summary) {
+        return new PaymentGatewayResult(source.canonicalState(), source.providerStatus(),
+                source.providerOrderId(), source.providerAccessId(),
+                "RECURRING_INSTRUMENT_SETUP_REVIEW", summary, true, source.nextAction(),
+                source.instructions(), source.transport(), source.providerOperation(), source.endpoint(),
+                source.httpStatus(), source.durationMs(), source.sanitizedRequest(),
+                source.sanitizedResponse());
     }
 
     private PaymentGatewayResult cash(PaymentExecutionContext context, Map<String, Object> details,
@@ -165,7 +471,8 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
                 value(details, "email", properties.getMerchant().getContactEmail()),
                 value(details, "phone", properties.getMerchant().getContactPhone()),
                 value(details, "konbiniCode", "LAWSON"));
-        var result = openApi.post("/cash/charge", payload, true);
+        var result = openApi.post("/cash/charge", payload, true,
+                providerIdempotency(context, "cash-" + cashType.toLowerCase()));
         Map<String, Object> instructions = nested(result.rawPayload(), "cashResult");
         return new PaymentGatewayResult("INSTRUCTIONS_ISSUED", status(result.rawPayload(), "REQSUCCESS"),
                 context.applicationNumber(), accessId(result.rawPayload()), "INSTRUCTIONS_ISSUED",
@@ -280,7 +587,8 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
         return switch (status.toUpperCase()) {
             case "AUTH", "AUTHORIZED" -> "AUTHORIZED";
             case "SALES", "CAPTURE", "PAYSUCCESS", "PAID" -> "PAID";
-            case "REQSUCCESS", "TRADING" -> "PROCESSING";
+            case "REQSUCCESS", "TRADING", "AUTHPROCESS", "UNPROCESSED" -> "PROCESSING";
+            case "REGISTER" -> "REGISTERED";
             case "PAYFAIL", "FAILED", "EXPIRED", "CANCEL" -> "FAILED";
             default -> "PROCESSING";
         };
