@@ -13,9 +13,12 @@
 .eyebrow { margin: 0 0 7px; color: var(--violet); font-size: .68rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
 h1 { margin: 0 0 14px; font-size: 1.25rem; letter-spacing: -.02em; line-height: 1.24; }
 .method-list { display: grid; gap: 10px; }
-.method-card { display: grid; grid-template-columns: 20px 56px minmax(0,1fr) auto; gap: 12px; align-items: center; width: 100%; min-height: 74px; padding: 14px 15px; border: 1px solid var(--line); border-radius: 9px; background: white; color: var(--ink); text-align: left; }
+.method-card { overflow: hidden; width: 100%; border: 1px solid var(--line); border-radius: 9px; background: white; color: var(--ink); }
 .method-card:hover { border-color: #b8b7c4; box-shadow: 0 2px 4px rgba(50,50,93,.08); }
-.method-card.is-selected { padding: 13px 14px; border: 2px solid var(--violet); }
+.method-card.is-selected { border: 2px solid var(--violet); }
+.method-card-trigger { display: grid; grid-template-columns: 20px 56px minmax(0,1fr) auto; gap: 12px; align-items: center; width: 100%; min-height: 74px; padding: 14px 15px; border: 0; background: transparent; color: inherit; text-align: left; }
+.method-card.is-selected .method-card-trigger { padding: 13px 14px; }
+.method-card-trigger:focus-visible { outline: 3px solid color-mix(in srgb,var(--violet) 28%,transparent); outline-offset: -3px; }
 .selection-circle { display: grid; place-items: center; width: 18px; height: 18px; border: 1px solid #c7cbd1; border-radius: 50%; }
 .is-selected .selection-circle { border-color: var(--violet); background: var(--violet); }
 .is-selected .selection-circle::after { content: ''; width: 7px; height: 4px; border: solid white; border-width: 0 0 2px 2px; transform: rotate(-45deg) translateY(-1px); }
@@ -25,7 +28,22 @@ h1 { margin: 0 0 14px; font-size: 1.25rem; letter-spacing: -.02em; line-height: 
 .method-title { margin-bottom: 3px; font-size: .9rem; font-weight: 500; }
 .method-description { color: var(--muted); font-size: .77rem; line-height: 1.35; }
 .method-badge { margin-top: 4px; color: var(--green); font-size: .7rem; }
-.chevron { color: var(--violet-dark); font-size: 1.2rem; }
+.chevron { color: var(--violet-dark); font-size: 1.2rem; transition: transform .16s ease; }
+.chevron.is-expanded { transform: rotate(90deg); }
+.method-accordion { padding: 18px 16px 19px; border-top: 1px solid #e5e6f7; background: #fcfcff; }
+.accordion-heading { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
+.accordion-heading > div { min-width: 0; }
+.accordion-heading h2 { margin: 0; font-size: .84rem; font-weight: 500; }
+.accordion-heading p { margin: 4px 0 0; color: var(--muted); font-size: .76rem; }
+.element-badge { display: inline-flex; flex: 0 1 auto; max-width: 45%; padding: 4px 8px; border-radius: 999px; background: var(--violet-pale); color: var(--violet-dark); font-size: .66rem; line-height: 1.2; text-align: center; }
+.gmo-card-form { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; margin-top: 15px; }
+.gmo-field { display: grid; gap: 5px; min-width: 0; color: var(--ink); font-size: .72rem; font-weight: 500; }
+.gmo-field-wide { grid-column: 1 / -1; }
+.gmo-element-slot, .gmo-field input { display: flex; align-items: center; min-width: 0; min-height: 41px; width: 100%; padding: 9px 11px; border: 1px solid #cfd5df; border-radius: 6px; background: white; color: #8993a5; font: inherit; font-weight: 400; }
+.gmo-element-slot { gap: 7px; box-shadow: inset 0 1px 1px rgba(16,35,63,.03); }
+.gmo-field input { color: var(--ink); outline: none; }
+.gmo-field input:focus { border-color: var(--violet); box-shadow: 0 0 0 2px color-mix(in srgb,var(--violet) 16%,transparent); }
+.iframe-note { margin: 12px 0 0; color: var(--muted); font-size: .68rem; line-height: 1.45; }
 .loading-state { padding: 18px; border: 1px dashed #cfd5df; border-radius: 9px; color: var(--muted); font-size: .82rem; }
 .error { margin: 12px 0 0; padding: 10px 12px; border-radius: 7px; background: var(--orange-pale); color: #99450b; font-size: .78rem; }
 .actions { display: flex; justify-content: flex-end; margin-top: 22px; }
@@ -43,7 +61,9 @@ h1 { margin: 0 0 14px; font-size: 1.25rem; letter-spacing: -.02em; line-height: 
 @media (max-width: 620px) {
   .customer-flow { padding: 22px 18px; }
   .application-card, .confirmation dl { grid-template-columns: 1fr; }
-  .method-card { grid-template-columns: 20px 48px minmax(0,1fr); }
+  .method-card-trigger { grid-template-columns: 20px 48px minmax(0,1fr); }
   .method-icon { width: 48px; }
   .chevron { display: none; }
+  .gmo-card-form { grid-template-columns: 1fr; }
+  .gmo-field-wide { grid-column: auto; }
 }
