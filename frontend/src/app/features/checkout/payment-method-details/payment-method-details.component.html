@@ -1,0 +1,72 @@
+<section [id]="'method-details-' + method().code" class="method-accordion" [attr.aria-label]="presentation().title">
+  <div class="accordion-heading">
+    <div><h2>{{ presentation().title }}</h2><p>{{ presentation().description }}</p></div>
+    <span class="element-badge">{{ presentation().badge }}</span>
+  </div>
+
+  @switch (method().code) {
+    @case ('card') {
+      <div class="gmo-card-form" aria-label="Secure card field layout">
+        <label class="field field-wide"><span>Card number</span><span class="gmo-element-slot" role="group" aria-label="GMO-hosted card number field"><span aria-hidden="true">🔒</span> 1234 1234 1234 1234</span></label>
+        <label class="field"><span>Expiry</span><span class="gmo-element-slot" role="group" aria-label="GMO-hosted expiry field">MM / YY</span></label>
+        <label class="field"><span>Security code</span><span class="gmo-element-slot" role="group" aria-label="GMO-hosted security code field">CVC</span></label>
+        <label class="field field-wide" for="cardholder-name"><span>Cardholder name</span><input id="cardholder-name" type="text" autocomplete="cc-name" placeholder="Name on card" /></label>
+      </div>
+      <p class="integration-note">The outlined secure slots are mount points for GMO-hosted fields; Angular never receives PAN or CVC.</p>
+    }
+    @case ('paypay') {
+      <div class="handoff-summary"><div><span>Payment today</span><strong>JPY {{ amountJpy().toLocaleString() }}</strong></div><div><span>Next step</span><strong>PayPay approval</strong></div></div>
+      <div class="method-route"><span class="route-step">1</span><p>Approve the payment in PayPay. You will return here automatically when it is complete.</p></div>
+    }
+    @case ('bankDirect') {
+      <div class="compact-fields" aria-label="Real-time bank debit setup">
+        <label class="field"><span>Bank</span><select><option>Mizuho Bank</option><option>Mitsubishi UFJ Bank</option><option>Sumitomo Mitsui Banking Corporation</option></select></label>
+        <label class="field"><span>Account type</span><select><option>Ordinary</option><option>Current</option></select></label>
+        <label class="field"><span>Account number</span><input inputmode="numeric" autocomplete="off" placeholder="1234567" /></label>
+        <label class="field"><span>Account holder name</span><input autocomplete="name" placeholder="Account holder name" /></label>
+      </div>
+      <div class="method-route"><span class="route-step">1</span><p>Complete bank registration. On return, today’s payment is debited immediately.</p></div>
+    }
+    @case ('kozaFurikae') {
+      <div class="combined-flow" aria-label="Monthly debit registration followed by first-premium transfer">
+        <div><span class="flow-number">1</span><p><small>Future monthly payments</small>Register the bank account for Koza Furikae.</p></div>
+        <span class="flow-arrow">→</span>
+        <div><span class="flow-number">2</span><p><small>First premium</small>Receive a separate Furikomi virtual account.</p></div>
+      </div>
+      <div class="compact-fields">
+        <label class="field"><span>Bank</span><select><option>Mitsubishi UFJ Bank</option><option>Sumitomo Mitsui Banking Corporation</option><option>Mizuho Bank</option></select></label>
+        <label class="field"><span>Branch</span><input placeholder="Tokyo Central / 001" /></label>
+        <label class="field"><span>Account type</span><select><option>Ordinary</option><option>Current</option></select></label>
+        <label class="field"><span>Account number</span><input inputmode="numeric" autocomplete="off" placeholder="1234567" /></label>
+        <label class="field field-wide"><span>Account holder name</span><input autocomplete="name" placeholder="Account holder name" /></label>
+      </div>
+    }
+    @case ('kombini') {
+      <div class="compact-fields"><label class="field"><span>Convenience store</span><select><option>Lawson</option><option>FamilyMart</option><option>Ministop</option></select></label><label class="field"><span>Contact</span><input autocomplete="email" placeholder="Email address or mobile number" /></label></div>
+      <ng-container *ngTemplateOutlet="instructions"></ng-container>
+    }
+    @case ('payeasy') {
+      <div class="compact-fields"><label class="field field-wide"><span>Contact</span><input autocomplete="email" placeholder="Email address or mobile number" /></label></div>
+      <ng-container *ngTemplateOutlet="instructions"></ng-container>
+    }
+    @case ('furikomi') {
+      <div class="compact-fields"><label class="field field-wide"><span>Contact</span><input autocomplete="email" placeholder="Email address or mobile number" /></label></div>
+      <ng-container *ngTemplateOutlet="instructions"></ng-container>
+    }
+  }
+
+  <p class="method-note">{{ presentation().note }}</p>
+</section>
+
+<ng-template #instructions>
+  <div class="delivery-choice" role="group" aria-label="Instruction delivery method">
+    <span>Send instructions by</span>
+    @for (option of deliveryOptions; track option) {
+      <button type="button" [class.is-selected]="delivery() === option" (click)="chooseDelivery(option)">{{ option }}</button>
+    }
+  </div>
+  <button class="issue-button" type="button" (click)="issueInstructions()">{{ instructionsIssued() ? 'Refresh instructions' : 'Issue payment instructions' }}</button>
+  @if (instructionsIssued()) {
+    <section class="issued-instructions" aria-live="polite"><span class="issued-dot"></span><strong>Instructions issued</strong><span>Sent by {{ delivery() }}</span><p>Prototype values will be replaced by the sanitized GMO response.</p></section>
+  }
+</ng-template>

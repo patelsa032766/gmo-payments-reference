@@ -26,8 +26,8 @@
               <article class="method-card" [class.is-selected]="selectedCode() === method.code">
                 <button class="method-card-trigger" type="button"
                         [attr.aria-pressed]="selectedCode() === method.code"
-                        [attr.aria-expanded]="method.code === 'card' ? selectedCode() === method.code : null"
-                        [attr.aria-controls]="method.code === 'card' ? 'method-details-card' : null"
+                        [attr.aria-expanded]="selectedCode() === method.code"
+                        [attr.aria-controls]="'method-details-' + method.code"
                         (click)="select(method.code)">
                   <span class="selection-circle" aria-hidden="true"></span>
                   <span class="method-icon" [class.is-paypay]="method.code === 'paypay'">{{ methodMonogram(method) }}</span>
@@ -36,41 +36,11 @@
                     <span class="method-description">{{ method.description }}</span>
                     @if (method.recurring) { <span class="method-badge">Available for future monthly payments</span> }
                   </span>
-                  <span class="chevron" [class.is-expanded]="method.code === 'card' && selectedCode() === method.code" aria-hidden="true">›</span>
+                  <span class="chevron" [class.is-expanded]="selectedCode() === method.code" aria-hidden="true">›</span>
                 </button>
 
-                @if (method.code === 'card' && selectedCode() === method.code) {
-                  <section id="method-details-card" class="method-accordion" aria-label="Secure card details">
-                    <div class="accordion-heading">
-                      <div>
-                        <h2>Secure card details</h2>
-                        <p>Enter your card details to authorize the first payment.</p>
-                      </div>
-                      <span class="element-badge">Secure payment</span>
-                    </div>
-
-                    <div class="gmo-card-form" aria-label="Secure card field layout">
-                      <label class="gmo-field gmo-field-wide">
-                        <span>Card number</span>
-                        <span class="gmo-element-slot" role="group" aria-label="GMO-hosted card number field">
-                          <span aria-hidden="true">🔒</span> 1234 1234 1234 1234
-                        </span>
-                      </label>
-                      <label class="gmo-field">
-                        <span>Expiry</span>
-                        <span class="gmo-element-slot" role="group" aria-label="GMO-hosted expiry field">MM / YY</span>
-                      </label>
-                      <label class="gmo-field">
-                        <span>Security code</span>
-                        <span class="gmo-element-slot" role="group" aria-label="GMO-hosted security code field">CVC</span>
-                      </label>
-                      <label class="gmo-field gmo-field-wide" for="cardholder-name">
-                        <span>Cardholder name</span>
-                        <input id="cardholder-name" type="text" autocomplete="cc-name" placeholder="Name on card" />
-                      </label>
-                    </div>
-                    <p class="iframe-note">Your card details are handled securely by GMO and are not stored by us. The outlined secure slots are the integration points for GMO-hosted fields.</p>
-                  </section>
+                @if (selectedCode() === method.code) {
+                  <app-payment-method-details [method]="method" [amountJpy]="amountJpy" />
                 }
               </article>
             } @empty {

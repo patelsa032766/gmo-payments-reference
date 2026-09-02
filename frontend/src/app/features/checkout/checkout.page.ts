@@ -1,6 +1,7 @@
 import { CurrencyPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { CheckoutApiService, PaymentMethodOption } from '../../core/api/checkout-api.service';
+import { PaymentMethodDetailsComponent } from './payment-method-details/payment-method-details.component';
 
 /**
  * Customer-facing checkout entry point.
@@ -11,7 +12,7 @@ import { CheckoutApiService, PaymentMethodOption } from '../../core/api/checkout
  */
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CurrencyPipe],
+  imports: [CurrencyPipe, PaymentMethodDetailsComponent],
   selector: 'app-checkout-page',
   styleUrl: './checkout.page.scss',
   templateUrl: './checkout.page.html',
