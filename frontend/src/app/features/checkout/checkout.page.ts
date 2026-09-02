@@ -137,7 +137,13 @@ export class CheckoutPage implements OnInit {
       return;
     }
     if (result.requiresAttention || ['FAILED', 'UNKNOWN'].includes(result.state)) {
-      this.error.set('The payment was not completed. Please check the details or choose another method.'); return;
+      this.error.set('The payment was not completed. Please check the details or choose another method.');
+      // A conclusive provider rejection may be retried by the customer, but a
+      // retry must be a new payment command with a fresh one-use GMO token and
+      // a fresh application idempotency key. UNKNOWN outcomes deliberately do
+      // not get an automatic retry path because they require inquiry first.
+      if (result.state === 'FAILED') this.idempotencyKey = crypto.randomUUID();
+      return;
     }
     this.confirmed.set(true);
   }

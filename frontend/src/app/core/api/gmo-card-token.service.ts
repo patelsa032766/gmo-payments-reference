@@ -6,8 +6,11 @@ interface MultipaymentBootstrapApi {
 }
 
 interface MultipaymentTokenApi {
-  getToken(card: Record<string, string>, callback: (response: { resultCode: string; tokenObject?: { token: string } }) => void): void;
+  getToken(card: Record<string, string>, callback: MultipaymentTokenCallback): void;
 }
+
+type MultipaymentTokenResponse = { resultCode: string; tokenObject?: { token: string } };
+type MultipaymentTokenCallback = (response: MultipaymentTokenResponse) => void;
 
 declare global {
   interface Window {
@@ -33,8 +36,8 @@ export class GmoCardTokenService {
       throw new Error('Card tokenization is not configured for this environment.');
     }
     await this.load(configuration.mpTokenJsUrl);
-    const bootstrapApi = window.Multipayment;
-    if (!bootstrapApi || !('init' in bootstrapApi)) {
+    const loadedApi = window.Multipayment;
+    if (!loadedApi) {
       throw new Error('GMO card tokenization did not initialize.');
     }
 
@@ -45,8 +48,8 @@ export class GmoCardTokenService {
      * getToken(). Re-reading the global is therefore required; retaining the
      * bootstrap object would make api.getToken undefined.
      */
-    bootstrapApi.init(configuration.shopId);
-    const tokenApi = window.Multipayment;
+    if ('init' in loadedApi) loadedApi.init(configuration.shopId);
+    const tokenApi = 'getToken' in loadedApi ? loadedApi : window.Multipayment;
     if (!tokenApi || !('getToken' in tokenApi)) {
       throw new Error('The GMO card security library did not expose its tokenization client.');
     }
@@ -58,12 +61,18 @@ export class GmoCardTokenService {
       throw new Error('Enter complete card details before continuing.');
     }
     const expire = `20${expiry.slice(2)}${expiry.slice(0, 2)}`;
-    return new Promise((resolve, reject) => tokenApi.getToken({ cardno: number, expire,
-      securitycode: securityCode, holdername: holderName, tokennumber: '1' }, response => {
-      if (response.resultCode !== '000' || !response.tokenObject?.token) {
-        reject(new Error('GMO could not tokenize this card. Check the details and try again.'));
-      } else resolve({ token: response.tokenObject.token, holderName });
-    }));
+    return new Promise((resolve, reject) => {
+      // GMO documents that the legacy getToken callback must be named. Keep
+      // this declaration rather than replacing it with an anonymous closure.
+      function handleGmoTokenResult(response: MultipaymentTokenResponse): void {
+        const token = response.tokenObject?.token?.trim();
+        if (response.resultCode !== '000' || !token) {
+          reject(new Error('GMO could not tokenize this card. Check the details and try again.'));
+        } else resolve({ token, holderName });
+      }
+      tokenApi.getToken({ cardno: number, expire, securitycode: securityCode,
+        holdername: holderName, tokennumber: '1' }, handleGmoTokenResult);
+    });
   }
 
   private load(url: string): Promise<void> {
