@@ -1,12 +1,19 @@
 import { Injectable } from '@angular/core';
 import { BrowserPaymentConfiguration } from './checkout-api.service';
 
-interface MultipaymentApi {
+interface MultipaymentBootstrapApi {
   init(shopId: string): void;
+}
+
+interface MultipaymentTokenApi {
   getToken(card: Record<string, string>, callback: (response: { resultCode: string; tokenObject?: { token: string } }) => void): void;
 }
 
-declare global { interface Window { Multipayment?: MultipaymentApi; } }
+declare global {
+  interface Window {
+    Multipayment?: MultipaymentBootstrapApi | MultipaymentTokenApi;
+  }
+}
 
 /**
  * Browser-only GMO MP-token bridge. PAN and security code are sent directly
@@ -26,9 +33,23 @@ export class GmoCardTokenService {
       throw new Error('Card tokenization is not configured for this environment.');
     }
     await this.load(configuration.mpTokenJsUrl);
-    const api = window.Multipayment;
-    if (!api) throw new Error('GMO card tokenization did not initialize.');
-    api.init(configuration.shopId);
+    const bootstrapApi = window.Multipayment;
+    if (!bootstrapApi || !('init' in bootstrapApi)) {
+      throw new Error('GMO card tokenization did not initialize.');
+    }
+
+    /*
+     * GMO's browser library deliberately changes the global object during
+     * initialization. Before init(), window.Multipayment exposes only init().
+     * The init() call then replaces that global with the client exposing
+     * getToken(). Re-reading the global is therefore required; retaining the
+     * bootstrap object would make api.getToken undefined.
+     */
+    bootstrapApi.init(configuration.shopId);
+    const tokenApi = window.Multipayment;
+    if (!tokenApi || !('getToken' in tokenApi)) {
+      throw new Error('The GMO card security library did not expose its tokenization client.');
+    }
     const number = String(card['cardNumber'] ?? '').replace(/\D/g, '');
     const expiry = String(card['expiry'] ?? '').replace(/\D/g, '');
     const securityCode = String(card['securityCode'] ?? '').replace(/\D/g, '');
@@ -37,7 +58,7 @@ export class GmoCardTokenService {
       throw new Error('Enter complete card details before continuing.');
     }
     const expire = `20${expiry.slice(2)}${expiry.slice(0, 2)}`;
-    return new Promise((resolve, reject) => api.getToken({ cardno: number, expire,
+    return new Promise((resolve, reject) => tokenApi.getToken({ cardno: number, expire,
       securitycode: securityCode, holdername: holderName, tokennumber: '1' }, response => {
       if (response.resultCode !== '000' || !response.tokenObject?.token) {
         reject(new Error('GMO could not tokenize this card. Check the details and try again.'));
