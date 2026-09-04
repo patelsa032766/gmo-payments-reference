@@ -63,13 +63,19 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                 return new Reservation(loadContext(existing.get().transactionId()), true);
             }
 
+            // Resolve the command against the same published release used by
+            // the checkout-options endpoint. application_record retains the
+            // version used by its latest attempt for audit purposes, but it
+            // must not pin a later retry to a retired release: otherwise the
+            // customer can be shown CAPTURE while the command silently sends
+            // AUTH to GMO.
             var application = jdbc.sql("""
                     SELECT a.id application_id, a.application_number, a.amount_jpy,
-                           a.configuration_version, c.id customer_id, c.customer_code, c.full_name,
+                           r.version configuration_version, c.id customer_id, c.customer_code, c.full_name,
                            m.cit_execution_mode
                     FROM application_record a
                     JOIN customer c ON c.id = a.customer_id
-                    JOIN configuration_release r ON r.version = a.configuration_version
+                    JOIN configuration_release r ON r.status = 'PUBLISHED'
                     JOIN payment_method_configuration m ON m.release_id = r.id AND m.code = :method
                     WHERE a.application_number = :applicationNumber
                     """).param("applicationNumber", applicationNumber).param("method", method.apiValue())
@@ -109,9 +115,11 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
             jdbc.sql("""
                     UPDATE application_record
                     SET selected_method = :method, state = 'PROCESSING', version = version + 1,
-                        updated_at = :updatedAt
+                        configuration_version = :configurationVersion, updated_at = :updatedAt
                     WHERE id = :id
-                    """).param("method", method.apiValue()).param("updatedAt", Instant.now().toString())
+                    """).param("method", method.apiValue())
+                    .param("configurationVersion", application.configurationVersion())
+                    .param("updatedAt", Instant.now().toString())
                     .param("id", application.id()).update();
             return new Reservation(new PaymentExecutionContext(transactionId, application.applicationNumber(),
                     application.customerCode(), application.customerName(), "A. Suzuki", "Example Insurance",
