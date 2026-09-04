@@ -43,7 +43,14 @@ export class OperationsPage implements OnInit {
   }
   protected canCapture(thread:TransactionThread|null=this.thread()):boolean{
     return !!thread && thread.transaction.canonicalState==='AUTHORIZED'
-      && (thread.transaction.method==='CARD'||thread.transaction.method==='PAYPAY');
+      && (thread.transaction.method==='CARD'||thread.transaction.method==='PAYPAY')
+      && !this.isSimulatedAuthorization(thread);
+  }
+  /** Historical prototype authorizations have no GMO order to capture. */
+  protected isSimulatedAuthorization(thread:TransactionThread|null=this.thread()):boolean{
+    return !!thread && thread.exchanges.some(exchange =>
+      exchange.operation.startsWith('Simulated')
+      || String(exchange.requestBody['mode'] ?? '').toUpperCase()==='SIMULATED');
   }
   protected capture():void{
     const selected=this.thread();

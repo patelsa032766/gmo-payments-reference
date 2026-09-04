@@ -121,6 +121,11 @@ The environment names are intentionally compatible with the companion Flask impl
 
 Card PAN/CVC never enters Spring Boot. Angular loads GMO's MP Token browser library from `GMO_MP_TOKEN_JS_URL`, receives a one-use token, and sends only that token and the cardholder name to the backend.
 
+Switching from simulation to live mode does not rewrite historical transaction
+evidence. Prototype rows remain labelled as simulated in the transaction thread
+and deliberately do not offer a Capture action; only a new, successful GMO
+sandbox authorization produces a capturable provider order.
+
 ## Browser returns and webhook ingress
 
 A local application needs a public HTTPS origin for GMO browser returns and notifications. Use Cloudflare Tunnel, ngrok, an ingress controller, or another reverse proxy and configure its public origin only in local/deployment environment variables.
