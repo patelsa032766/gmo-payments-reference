@@ -10,7 +10,10 @@ interface MultipaymentTokenApi {
     void | Promise<MultipaymentTokenResponse | void>;
 }
 
-type MultipaymentTokenResponse = { resultCode: string; tokenObject?: { token: string } };
+type MultipaymentTokenResponse = {
+  resultCode: string;
+  tokenObject?: { token: string | string[] };
+};
 type MultipaymentTokenCallback = (response: MultipaymentTokenResponse) => void;
 
 declare global {
@@ -79,7 +82,16 @@ export class GmoCardTokenService {
       // GMO documents that the legacy getToken callback must be named. Keep
       // this declaration rather than replacing it with an anonymous closure.
       function handleGmoTokenResult(response: MultipaymentTokenResponse): void {
-        const token = response.tokenObject?.token?.trim();
+        /*
+         * Older MpToken.js releases returned tokenObject.token as one string.
+         * The current V2 compatibility API returns an array when tokennumber
+         * is supplied—even when tokennumber is "1". Accept both shapes so an
+         * SDK update cannot turn the array into an invalid comma-coerced token
+         * or throw while calling String.trim(). Only the requested first token
+         * is forwarded; neither representation is logged or persisted.
+         */
+        const tokenValue = response.tokenObject?.token;
+        const token = (Array.isArray(tokenValue) ? tokenValue[0] : tokenValue)?.trim();
         if (response.resultCode !== '000' || !token) {
           fail(`GMO could not tokenize this card (result ${response.resultCode}). Check the details and try again.`);
         } else succeed(token);

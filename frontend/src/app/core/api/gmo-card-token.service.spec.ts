@@ -81,6 +81,26 @@ describe('GmoCardTokenService', () => {
     expect(result.token).toBe('replacement-sandbox-token');
   });
 
+  it('extracts the first token from the current GMO V2 token array', async () => {
+    const service = TestBed.inject(GmoCardTokenService);
+    (service as unknown as { load: (url: string) => Promise<void> }).load = async () => undefined;
+    window.Multipayment = {
+      getToken: (_card, callback) => callback({
+        resultCode: '000',
+        tokenObject: { token: ['current-v2-sandbox-token'] },
+      }),
+    };
+
+    const result = await service.tokenize(configuration, {
+      cardNumber: '4111111111111111',
+      expiry: '1229',
+      securityCode: '123',
+      holderName: 'Taro Mihon',
+    });
+
+    expect(result.token).toBe('current-v2-sandbox-token');
+  });
+
   it('reports an asynchronous GMO token endpoint failure instead of hanging', async () => {
     const service = TestBed.inject(GmoCardTokenService);
     (service as unknown as { load: (url: string) => Promise<void> }).load = async () => undefined;
