@@ -6,7 +6,8 @@ interface MultipaymentBootstrapApi {
 }
 
 interface MultipaymentTokenApi {
-  getToken(card: Record<string, string>, callback: MultipaymentTokenCallback): void;
+  getToken(card: Record<string, string>, callback: MultipaymentTokenCallback):
+    void | Promise<MultipaymentTokenResponse | void>;
 }
 
 type MultipaymentTokenResponse = { resultCode: string; tokenObject?: { token: string } };
@@ -62,16 +63,50 @@ export class GmoCardTokenService {
     }
     const expire = `20${expiry.slice(2)}${expiry.slice(0, 2)}`;
     return new Promise((resolve, reject) => {
+      let settled = false;
+      const timeout = window.setTimeout(() => {
+        fail('GMO card tokenization timed out. Check the connection and try again.');
+      }, 30_000);
+
+      const fail = (message: string): void => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        reject(new Error(message));
+      };
+
+      const succeed = (token: string): void => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        resolve({ token, holderName });
+      };
+
       // GMO documents that the legacy getToken callback must be named. Keep
       // this declaration rather than replacing it with an anonymous closure.
       function handleGmoTokenResult(response: MultipaymentTokenResponse): void {
         const token = response.tokenObject?.token?.trim();
         if (response.resultCode !== '000' || !token) {
-          reject(new Error('GMO could not tokenize this card. Check the details and try again.'));
-        } else resolve({ token, holderName });
+          fail('GMO could not tokenize this card. Check the details and try again.');
+        } else succeed(token);
       }
-      tokenApi.getToken({ cardno: number, expire, securitycode: securityCode,
-        holdername: holderName, tokennumber: '1' }, handleGmoTokenResult);
+
+      try {
+        const pending = tokenApi.getToken({ cardno: number, expire, securitycode: securityCode,
+          holdername: holderName, tokennumber: '1' }, handleGmoTokenResult);
+        // Current MpToken.js returns a Promise in addition to supporting the
+        // legacy callback. A network/CORS failure rejects that Promise without
+        // invoking the callback, so it must be observed to prevent an endless
+        // Processing state. Some compatible versions also resolve with the
+        // result instead of calling back; accept both behaviors safely.
+        if (pending && typeof pending.then === 'function') {
+          pending.then(response => {
+            if (response?.resultCode) handleGmoTokenResult(response);
+          }).catch(() => fail('GMO card tokenization could not be reached. Please try again.'));
+        }
+      } catch {
+        fail('GMO card tokenization could not be started. Please try again.');
+      }
     });
   }
 

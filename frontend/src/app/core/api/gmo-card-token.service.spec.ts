@@ -63,4 +63,19 @@ describe('GmoCardTokenService', () => {
 
     expect(result.token).toBe('replacement-sandbox-token');
   });
+
+  it('reports an asynchronous GMO token endpoint failure instead of hanging', async () => {
+    const service = TestBed.inject(GmoCardTokenService);
+    (service as unknown as { load: (url: string) => Promise<void> }).load = async () => undefined;
+    window.Multipayment = {
+      getToken: async () => { throw new Error('simulated network failure'); },
+    };
+
+    await expect(service.tokenize(configuration, {
+      cardNumber: '4111111111111111',
+      expiry: '1229',
+      securityCode: '123',
+      holderName: 'Taro Mihon',
+    })).rejects.toThrow('GMO card tokenization could not be reached. Please try again.');
+  });
 });
