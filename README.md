@@ -71,15 +71,30 @@ export PATH=/usr/local/opt/openjdk@21/bin:$PATH
 
 ## Environment configuration
 
-Copy `.env.example` to `.env.local`, which is Git-ignored, then edit only local values:
+Copy `.env.example` to `.env.local`, which is Git-ignored, then edit only local values. `run-backend.sh` loads this file automatically and parses dotenv assignments without executing them as shell code, so values containing spaces are supported:
 
 ```bash
 cp .env.example .env.local
-set -a
-source .env.local
-set +a
+# Edit .env.local with your private values.
 ./scripts/run-backend.sh
 ```
+
+To reuse another implementation's private sandbox environment without copying
+it or hard-coding its location in this public repository, select it only for
+the local process:
+
+```bash
+GMO_ENV_FILE=/private/path/to/existing/.env \
+GMO_LIVE_CALLS_ENABLED=true \
+OPERATOR_API_TOKEN=choose-a-local-operator-token \
+./scripts/run-backend.sh
+```
+
+If the selected legacy environment contains a non-SQLite `DATABASE_URL`, the
+launcher intentionally ignores that value and uses this application's SQLite
+database. The Configuration page's **Save changes** action writes a draft and
+publishes it as one active version; the choice then survives navigation and
+application restarts.
 
 Configuration precedence is:
 
