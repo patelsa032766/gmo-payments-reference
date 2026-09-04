@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActiveConfiguration, BrowserPaymentConfiguration, CheckoutApiService, ConfiguredMethod } from '../../core/api/checkout-api.service';
+import { OperatorCredentialService } from '../../core/auth/operator-credential.service';
 
 /** Protected copy-on-write checkout configuration administrator. */
 @Component({
@@ -12,6 +13,7 @@ import { ActiveConfiguration, BrowserPaymentConfiguration, CheckoutApiService, C
 })
 export class ConfigurationPage implements OnInit {
   private readonly api = inject(CheckoutApiService);
+  private readonly operatorCredential = inject(OperatorCredentialService);
   protected readonly configuration = signal<ActiveConfiguration | null>(null);
   protected readonly failed = signal(false);
   protected readonly draftVersion = signal<number | null>(null);
@@ -28,6 +30,7 @@ export class ConfigurationPage implements OnInit {
   protected ekyc = true;
 
   ngOnInit(): void {
+    this.operatorToken = this.operatorCredential.current();
     this.api.getConfigurationWorkspace().subscribe({
       next: workspace => { this.configuration.set(workspace.active); this.methods.set(structuredClone(workspace.draft?.methods ?? workspace.active.methods)); this.draftVersion.set(workspace.draft?.version ?? null); this.dirty.set(!!workspace.draft); },
       error: () => this.failed.set(true),
@@ -36,6 +39,10 @@ export class ConfigurationPage implements OnInit {
   }
 
   protected changed(): void { this.dirty.set(true); this.message.set(null); this.methods.set([...this.methods()]); }
+  protected rememberOperatorToken(value: string): void {
+    this.operatorToken = value;
+    this.operatorCredential.rememberForCurrentTab(value);
+  }
   protected toggle(method: ConfiguredMethod): void { method.enabled=!method.enabled; this.changed(); }
   protected move(index:number,direction:-1|1):void { const next=index+direction; const methods=[...this.methods()]; if(next<0||next>=methods.length)return; [methods[index],methods[next]]=[methods[next],methods[index]]; methods.forEach((method,i)=>method.displayOrder=i+1); this.methods.set(methods); this.changed(); }
   protected publish():void {
