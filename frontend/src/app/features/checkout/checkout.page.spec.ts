@@ -18,6 +18,7 @@ describe('CheckoutPage', () => {
               description: 'Visa, Mastercard, JCB, and American Express',
               recurring: true,
               displayOrder: 1,
+              citExecutionMode: 'AUTH',
             }],
           }),
           getBrowserConfiguration: () => of({

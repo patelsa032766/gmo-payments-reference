@@ -32,10 +32,12 @@ public class SQLiteConfigurationAdministrationRepository implements Configuratio
             for (var method:methods) jdbc.sql("""
                     UPDATE payment_method_configuration SET enabled=:enabled, recurring=:recurring,
                       monthly_only=:monthlyOnly, min_amount_jpy=:minimum, max_amount_jpy=:maximum,
-                      display_order=:displayOrder WHERE release_id=:releaseId AND code=:code
+                      display_order=:displayOrder, cit_execution_mode=:citExecutionMode
+                      WHERE release_id=:releaseId AND code=:code
                     """).param("enabled",method.enabled()).param("recurring",method.recurring())
                     .param("monthlyOnly",method.monthlyOnly()).param("minimum",method.minimumAmountJpy())
                     .param("maximum",method.maximumAmountJpy()).param("displayOrder",method.displayOrder())
+                    .param("citExecutionMode",method.citExecutionMode().name())
                     .param("releaseId",draftId).param("code",method.code().apiValue()).update();
             return reader.findDraftRelease().orElseThrow();
         }));
@@ -69,9 +71,11 @@ public class SQLiteConfigurationAdministrationRepository implements Configuratio
         jdbc.sql("""
             INSERT INTO payment_method_configuration
                 (release_id,code,label_en,description_en,label_ja,description_ja,enabled,recurring,
-                 monthly_only,min_amount_jpy,max_amount_jpy,non_ekyc_max_amount_jpy,channels,display_order)
+                 monthly_only,min_amount_jpy,max_amount_jpy,non_ekyc_max_amount_jpy,channels,display_order,
+                 cit_execution_mode)
             SELECT :draft,code,label_en,description_en,label_ja,description_ja,enabled,recurring,
-                   monthly_only,min_amount_jpy,max_amount_jpy,non_ekyc_max_amount_jpy,channels,display_order
+                   monthly_only,min_amount_jpy,max_amount_jpy,non_ekyc_max_amount_jpy,channels,display_order,
+                   cit_execution_mode
             FROM payment_method_configuration WHERE release_id=:active
             """).param("draft",draft).param("active",active.id()).update();
         jdbc.sql("INSERT INTO system_feature_configuration(release_id,feature_code,enabled,value_json) SELECT :draft,feature_code,enabled,value_json FROM system_feature_configuration WHERE release_id=:active").param("draft",draft).param("active",active.id()).update();

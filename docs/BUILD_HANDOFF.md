@@ -8,12 +8,13 @@ Status: functional reference build implemented from approved mock baseline `2026
 - Angular 22 application reproducing the separate Checkout, Configuration, API & Webhooks, and MIT workspaces.
 - Independently runnable static mock retained in `ui-mock/`.
 - Flyway SQLite schema for configuration, applications, instruments, transactions, events, provider exchanges, inbound messages, idempotency, Koza batches, SFTP reconciliation, and jobs.
-- Draft/publish configuration with enablement, recurring/monthly rules, thresholds, order, channels, eKYC rule, and Japanese/English copy.
+- Draft/publish configuration with enablement, recurring/monthly rules, thresholds, order, Card/PayPay CIT execution policy, channels, eKYC rule, and Japanese/English copy.
 - Method-specific checkout accordion for enabled and disabled method configurations.
 - GMO OpenAPI and idPass adapters for Card, PayPay, real-time bank debit, Koza Furikae Select, Kombini, Pay-easy, and Furikomi.
 - Card authorization plus store-card; PayPay account authorization plus first authorization; real-time bank registration plus immediate debit.
 - Combined Koza registration plus first-premium Furikomi instruction journey.
-- Saved-method Primary/Backup preferences, individual MIT, and monthly Koza batch submission.
+- Saved-method Primary/Backup preferences; Card/PayPay MIT immediate-sale or auth/capture choice; individual bank debit; and monthly Koza batch submission.
+- Contextual Card/PayPay capture on authorized transaction threads using GMO `/order/capture`, operator authentication, idempotency, and unknown-outcome protection.
 - Chronological transaction thread with paired outbound request/inbound response evidence.
 - Optional edge-authenticated webhook ingestion and independent pinned-host SFTP import.
 - Safe-read inquiry retry with bounded jitter; no automatic retry of ambiguous financial writes.
@@ -71,7 +72,7 @@ The code is intentionally runnable without prescribing an organization's platfor
 1. Add contract fixtures captured from the account's current GMO sandbox documentation for every enabled product.
 2. Add repository lock-contention and process-restart integration tests around unknown outcomes.
 3. Replace the local operator token with real identity and authorization.
-4. Add explicit capture/void/refund operator commands when the policy-issuance workflow is integrated.
+4. Add explicit void/refund operator commands and any four-eyes approval required by the policy-issuance workflow.
 5. Add scheduled inquiry jobs for unknown results and operational alerting.
 6. Validate the merchant's actual SFTP layout and add exact parser fixtures before turning on scheduled polling.
 7. Add deployment manifests and end-to-end tests for the chosen public HTTPS edge.

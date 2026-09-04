@@ -24,6 +24,8 @@ import io.github.patelsa032766.gmopayments.application.port.ReconciliationFileSo
 import io.github.patelsa032766.gmopayments.application.port.ReconciliationImportRepository;
 import io.github.patelsa032766.gmopayments.application.service.ReconciliationImportService;
 import io.github.patelsa032766.gmopayments.application.service.BrowserReturnService;
+import io.github.patelsa032766.gmopayments.application.port.CaptureCommandRepository;
+import io.github.patelsa032766.gmopayments.application.service.CapturePaymentService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -66,6 +68,9 @@ public class ApplicationUseCaseConfiguration {
 
     @Bean MitPaymentService mitPaymentService(MitCommandRepository repository, PaymentGateway gateway) {
         return new MitPaymentService(repository, gateway);
+    }
+    @Bean CapturePaymentService capturePaymentService(CaptureCommandRepository repository, PaymentGateway gateway) {
+        return new CapturePaymentService(repository, gateway);
     }
     @Bean PaymentInstrumentPreferenceService paymentInstrumentPreferenceService(PaymentInstrumentPreferenceRepository repository){return new PaymentInstrumentPreferenceService(repository);}
     @Bean KozaBatchService kozaBatchService(KozaBatchRepository batches,MitCommandRepository commands,PaymentGateway gateway){return new KozaBatchService(batches,commands,gateway);}

@@ -37,7 +37,8 @@ public final class CheckoutEligibilityService {
                         method.label(query.language()),
                         method.description(query.language()),
                         method.recurring(),
-                        method.displayOrder()))
+                        method.displayOrder(),
+                        method.citExecutionMode()))
                 .toList();
         return new CheckoutOptions(release.version(), methods);
     }

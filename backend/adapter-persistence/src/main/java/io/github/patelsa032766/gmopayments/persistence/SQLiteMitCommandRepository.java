@@ -8,6 +8,7 @@ import io.github.patelsa032766.gmopayments.domain.PaymentExecutionContext;
 import io.github.patelsa032766.gmopayments.domain.PaymentGatewayResult;
 import io.github.patelsa032766.gmopayments.domain.PaymentMethodCode;
 import io.github.patelsa032766.gmopayments.domain.PaymentNextAction;
+import io.github.patelsa032766.gmopayments.domain.PaymentExecutionMode;
 import io.github.patelsa032766.gmopayments.domain.PaymentSubmissionResult;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -46,7 +47,8 @@ public class SQLiteMitCommandRepository implements MitCommandRepository {
 
     @Override
     public MitExecutionReservation reserve(String instrumentId, long amountJpy, String merchantReference,
-                                           String idempotencyKey, String fingerprint) {
+                                           String idempotencyKey, String fingerprint,
+                                           PaymentExecutionMode executionMode) {
         return lockRetry.execute("reserve MIT payment", () -> transactions.execute(status -> {
             Optional<Existing> existing = jdbc.sql("""
                     SELECT i.request_fingerprint, t.transaction_id
@@ -98,7 +100,7 @@ public class SQLiteMitCommandRepository implements MitCommandRepository {
             var context = new PaymentExecutionContext(transactionId, merchantReference,
                     instrument.customerCode(), instrument.customerName(), "Payment operator",
                     "Example Insurance", instrument.method(), instrument.productCode(), "MIT", "CHARGE",
-                    amountJpy, instrument.configurationVersion(), correlationId);
+                    amountJpy, instrument.configurationVersion(), correlationId, executionMode);
             return new MitExecutionReservation(context, facts, false);
         }));
     }
@@ -191,7 +193,8 @@ public class SQLiteMitCommandRepository implements MitCommandRepository {
                 """).param("transactionId", transactionId).query((rs, rowNum) -> new PaymentExecutionContext(
                 rs.getString(1), rs.getString(2), rs.getString(8), rs.getString(9), "Payment operator",
                 "Example Insurance", PaymentMethodCode.fromApiValue(rs.getString(3)), rs.getString(4),
-                "MIT", rs.getString(5), rs.getLong(6), rs.getInt(7), rs.getString(10))).single();
+                "MIT", rs.getString(5), rs.getLong(6), rs.getInt(7), rs.getString(10),
+                PaymentExecutionMode.CAPTURE)).single();
     }
 
     private long appendEvent(long transactionPk, String type, String source, String summary, String state,

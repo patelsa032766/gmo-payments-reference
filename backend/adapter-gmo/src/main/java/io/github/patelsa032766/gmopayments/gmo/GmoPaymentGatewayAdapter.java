@@ -106,6 +106,27 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
     }
 
     @Override
+    public PaymentGatewayResult capture(PaymentExecutionContext context, String providerAccessId,
+                                        String providerOrderId) {
+        if (context.method() != io.github.patelsa032766.gmopayments.domain.PaymentMethodCode.CARD
+                && context.method() != io.github.patelsa032766.gmopayments.domain.PaymentMethodCode.PAYPAY) {
+            throw new IllegalArgumentException("Only Card and PayPay authorizations can be captured");
+        }
+        var request = requests.orderCapture(providerAccessId, providerOrderId);
+        if (!properties.isLiveCallsEnabled()) {
+            return new PaymentGatewayResult("PAID", "SALES", providerOrderId, providerAccessId,
+                    "PAYMENT_CAPTURED", "Authorization captured", false, PaymentNextAction.none(),
+                    Map.of(), "OPENAPI", "OrderCapture", "/order/capture", 201, 0,
+                    request, Map.of("orderReference", Map.of("status", "SALES",
+                            "accessId", providerAccessId)));
+        }
+        var response = openApi.post("/order/capture", request, true,
+                providerIdempotency(context, "capture"));
+        return openApiResult(context, response, request, "/order/capture", "OrderCapture",
+                "Authorization captured");
+    }
+
+    @Override
     public PaymentContinuationResult continueCheckout(PaymentExecutionContext context,
                                                       Map<String, Object> browserReturn) {
         if (!properties.isLiveCallsEnabled()) {
@@ -159,7 +180,8 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
             return new PaymentContinuationResult(outcome, exchanges);
         }
 
-        var chargeRequest = requests.savedPayPayCharge(facts(context), context.customerCode(), "AUTH");
+        var chargeRequest = requests.savedPayPayCharge(facts(context), context.customerCode(),
+                context.executionMode().name());
         var charge = openApi.post("/wallet/on-file/charge", chargeRequest, true,
                 providerIdempotency(context, "paypay-first-auth"));
         var chargeOutcome = openApiResult(context, charge, chargeRequest,
@@ -553,7 +575,8 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
             default -> Map.of();
         };
         String state = switch (context.method()) {
-            case CARD, PAYPAY -> "AUTHORIZED";
+            case CARD, PAYPAY -> context.executionMode() == io.github.patelsa032766.gmopayments.domain.PaymentExecutionMode.AUTH
+                    ? "AUTHORIZED" : "PAID";
             case BANK_DIRECT_REALTIME -> "PAID";
             case KOZA_FURIKAE_SELECT -> "MANDATE_REGISTERED_TRANSFER_DUE";
             case KOMBINI, PAYEASY, FURIKOMI -> "INSTRUCTIONS_ISSUED";

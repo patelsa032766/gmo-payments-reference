@@ -5,6 +5,7 @@ import io.github.patelsa032766.gmopayments.domain.ConfigurationRelease;
 import io.github.patelsa032766.gmopayments.domain.DistributionChannel;
 import io.github.patelsa032766.gmopayments.domain.PaymentMethodCode;
 import io.github.patelsa032766.gmopayments.domain.PaymentMethodConfiguration;
+import io.github.patelsa032766.gmopayments.domain.PaymentExecutionMode;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -55,7 +56,8 @@ public class SQLiteCheckoutConfigurationRepository implements CheckoutConfigurat
         var methods = jdbc.sql("""
                         SELECT code, label_en, description_en, label_ja, description_ja,
                                enabled, recurring, monthly_only, min_amount_jpy,
-                               max_amount_jpy, non_ekyc_max_amount_jpy, channels, display_order
+                               max_amount_jpy, non_ekyc_max_amount_jpy, channels, display_order,
+                               cit_execution_mode
                         FROM payment_method_configuration
                         WHERE release_id = :releaseId
                         ORDER BY display_order
@@ -74,7 +76,8 @@ public class SQLiteCheckoutConfigurationRepository implements CheckoutConfigurat
                         rs.getLong("max_amount_jpy"),
                         nullableLong(rs, "non_ekyc_max_amount_jpy"),
                         parseChannels(rs.getString("channels")),
-                        rs.getInt("display_order")))
+                        rs.getInt("display_order"),
+                        PaymentExecutionMode.from(rs.getString("cit_execution_mode"))))
                 .list();
 
         var row=release.get();

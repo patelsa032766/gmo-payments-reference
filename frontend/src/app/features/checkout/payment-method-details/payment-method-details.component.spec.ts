@@ -35,6 +35,7 @@ describe('PaymentMethodDetailsComponent', () => {
         description: `${entry.code} description`,
         recurring: true,
         displayOrder: 1,
+        citExecutionMode: 'AUTH',
       };
 
       fixture.componentRef.setInput('method', method);

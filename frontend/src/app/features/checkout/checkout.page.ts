@@ -64,7 +64,8 @@ export class CheckoutPage implements OnInit {
       let details = { ...this.paymentDetails() };
       if (method === 'card') {
         const token = await this.cardTokens.tokenize(configuration, details);
-        details = { token: token.token, holderName: token.holderName, authorizationMode: 'AUTH' };
+        details = { token: token.token, holderName: token.holderName,
+          authorizationMode: this.selectedMethod()?.citExecutionMode ?? 'AUTH' };
       }
       this.api.submitPayment('APP-20260821-001', method, details, this.idempotencyKey).subscribe({
         next: result => { this.submission.set(result); this.submitting.set(false); this.follow(result); },

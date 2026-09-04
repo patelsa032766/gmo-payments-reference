@@ -2,6 +2,8 @@ package io.github.patelsa032766.gmopayments;
 
 import io.github.patelsa032766.gmopayments.application.port.CheckoutConfigurationRepository;
 import io.github.patelsa032766.gmopayments.application.service.CheckoutPaymentService;
+import io.github.patelsa032766.gmopayments.application.service.CapturePaymentService;
+import io.github.patelsa032766.gmopayments.application.service.PaymentOperationsQueryService;
 import io.github.patelsa032766.gmopayments.domain.PaymentMethodCode;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +23,12 @@ class GmoPaymentsApplicationTest {
 
     @Autowired
     private CheckoutPaymentService checkoutPaymentService;
+
+    @Autowired
+    private CapturePaymentService capturePaymentService;
+
+    @Autowired
+    private PaymentOperationsQueryService operations;
 
     @Test
     void contextLoadsWithMigratedSQLiteConfiguration() {
@@ -46,5 +54,21 @@ class GmoPaymentsApplicationTest {
         assertThat(first.instructions()).containsKeys("bank", "accountNumber", "transferReference");
         assertThat(replay.transactionId()).isEqualTo(first.transactionId());
         assertThat(replay.idempotentReplay()).isTrue();
+    }
+
+    @Test
+    void captureAppendsToTheExistingAuthorizedTransactionThread() {
+        var authorization = checkoutPaymentService.submit("APP-20260821-001", PaymentMethodCode.CARD,
+                "auth-" + UUID.randomUUID(), Map.of("token", "test-token", "holderName", "AIKO TANAKA"));
+
+        assertThat(authorization.state()).isEqualTo("AUTHORIZED");
+        var captured = capturePaymentService.capture(authorization.transactionId(),
+                "capture-" + UUID.randomUUID());
+
+        assertThat(captured.state()).isEqualTo("PAID");
+        var thread = operations.getTransactionThread(authorization.transactionId());
+        assertThat(thread.events()).extracting("eventType")
+                .contains("CAPTURE_REQUESTED", "PAYMENT_CAPTURED");
+        assertThat(thread.exchanges()).extracting("operation").contains("OrderCapture");
     }
 }

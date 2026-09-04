@@ -4,7 +4,7 @@ Application endpoints use `/api/v1`. Webhook endpoints intentionally live at `/w
 
 ## Command conventions
 
-- Customer payment and MIT commands require a stable `Idempotency-Key` header.
+- Customer payment, MIT, and capture commands require a stable `Idempotency-Key` header.
 - Operator mutations require `X-Operator-Token`; optionally supply `X-Operator-Id` for audit attribution.
 - Repeating an idempotency key with the same fingerprint returns the original result. Reusing it for different input is rejected.
 - Enum-like payment method input uses public values: `card`, `paypay`, `bankDirect`, `kozaFurikae`, `kombini`, `payeasy`, and `furikomi`.
@@ -46,8 +46,7 @@ Content-Type: application/json
   "method": "card",
   "details": {
     "token": "browser-generated-mp-token",
-    "holderName": "AIKO TANAKA",
-    "authorizationMode": "AUTH"
+    "holderName": "AIKO TANAKA"
   }
 }
 ```
@@ -62,8 +61,8 @@ GET /api/v1/checkout/payments/{transactionId}
 
 | Method | Important details | Result model |
 | --- | --- | --- |
-| Card | `token`, `holderName`, `authorizationMode=AUTH` | Authorize, then store via successful charge reference |
-| PayPay | No sensitive account input | Recurring consent redirect, inquiry, first AUTH |
+| Card | `token`, `holderName` | Published CIT policy chooses `AUTH` or immediate `CAPTURE`; successful charge is then stored |
+| PayPay | No sensitive account input | Recurring consent redirect, inquiry, then first charge using the published CIT policy |
 | Real-time bank debit | Bank/account registration fields required by enabled contract | Registration form post, inquiry, immediate debit |
 | Koza Furikae | Registration bank fields | Registration form post, inquiry, then first-premium Furikomi instructions |
 | Kombini | Customer/contact and store code | Instructions issued |
@@ -82,7 +81,7 @@ POST   /api/v1/configuration/draft/publish
 DELETE /api/v1/configuration/draft
 ```
 
-Write commands require `X-Operator-Token`. A draft request contains the complete ordered method collection; each item includes `code`, `enabled`, `recurring`, `monthlyOnly`, `minimumAmountJpy`, `maximumAmountJpy`, `nonEkycMaximumAmountJpy`, channels, labels/descriptions, and display order. Publishing is atomic: the previous release retires and the draft becomes the one published release.
+Write commands require `X-Operator-Token`. A draft request contains the complete ordered method collection; each item includes `code`, `enabled`, `recurring`, `monthlyOnly`, `minimumAmountJpy`, `maximumAmountJpy`, `citExecutionMode`, and display order. `citExecutionMode` is merchant policy—not customer input—and is meaningful for Card and PayPay. Publishing is atomic: the previous release retires and the draft becomes the one published release.
 
 ## Operator transaction threads
 
@@ -92,6 +91,16 @@ GET /api/v1/operations/transactions/{transactionId}
 ```
 
 The list returns current projections. The detail response returns the root transaction, ordered events, and sanitized provider exchanges. Every later refund, chargeback, webhook, inquiry, retry, browser return, and SFTP match is appended to the same root thread instead of appearing as an unrelated payment.
+
+### Capture an authorization
+
+```http
+POST /api/v1/operations/transactions/TXN-CARD-123/capture
+X-Operator-Token: local-operator-token
+Idempotency-Key: c9f17020-d873-40b2-84c5-d73b7e8fa404
+```
+
+The action is available only when the selected Card or PayPay transaction is `AUTHORIZED`. It sends GMO `/order/capture`, updates the original transaction projection, and appends `CAPTURE_REQUESTED`, `PAYMENT_CAPTURED` (or failure/unknown evidence), and the sanitized provider exchange to that same thread. The operator UI requires a separate confirmation because this is a financial write. A timeout becomes `UNKNOWN`; do not send another capture until inquiry establishes the provider state.
 
 ## Stored instruments and preferences
 
@@ -128,7 +137,7 @@ Content-Type: application/json
 }
 ```
 
-Card and PayPay support `AUTH` or `CAPTURE` where the provider contract permits. Real-time bank debit performs an individual debit. Koza instruments are intentionally rejected here and must use the batch endpoint.
+Card and PayPay let the operator choose `AUTH` (“Authorize, capture later”) or `CAPTURE` (“Immediate sale”). The backend rejects `AUTH` for every other method even if a caller bypasses Angular. Real-time bank debit performs an individual immediate debit. Koza instruments are intentionally rejected here and must use the batch endpoint.
 
 ## Monthly Koza batch
 

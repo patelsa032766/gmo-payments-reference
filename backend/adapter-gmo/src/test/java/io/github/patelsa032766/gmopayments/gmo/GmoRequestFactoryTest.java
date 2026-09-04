@@ -44,6 +44,15 @@ class GmoRequestFactoryTest {
     }
 
     @Test
+    void captureIdentifiesTheExistingAuthorizationWithoutPaymentData() {
+        var payload = factory.orderCapture("access-123", "ORDER-123");
+
+        assertThat(payload).containsEntry("accessId", "access-123")
+                .containsEntry("orderId", "ORDER-123")
+                .doesNotContainKeys("amount", "tokenizedCard", "memberId");
+    }
+
+    @Test
     void storeCardRefersToTheSuccessfulChargeWithoutCardData() {
         var payload = factory.storeCard("charge-access", "CUST-1", "Aiko Tanaka");
 

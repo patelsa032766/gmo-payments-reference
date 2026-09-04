@@ -48,5 +48,6 @@ export class ConfigurationPage implements OnInit {
     this.api.discardConfigurationDraft(this.operatorToken).subscribe({next:()=>{this.methods.set(structuredClone(this.configuration()!.methods));this.draftVersion.set(null);this.dirty.set(false);this.message.set('Draft discarded.');},error:()=>this.failure('The draft could not be discarded.')});
   }
   protected name(code:string):string { return ({card:'Credit or debit card',paypay:'PayPay',bankDirect:'Real-time bank debit',kozaFurikae:'Bank transfer today + monthly bank debit',kombini:'Convenience store',payeasy:'Pay-easy',furikomi:'Bank transfer'} as Record<string,string>)[code]??code; }
+  protected supportsAuthorization(code:string):boolean{return code==='card'||code==='paypay';}
   private failure(message:string):void{this.saving.set(false);this.message.set(message);}
 }

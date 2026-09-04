@@ -121,7 +121,9 @@ SFTP reconciliation remains available whether webhooks are on or off:
 
 ### Card and PayPay
 
-Customer-initiated payments authorize first. Capture occurs before policy issuance. MIT supports immediate payment and authorization/capture-later where the provider product permits it.
+Card and PayPay customer-initiated execution is an immutable published configuration choice: `AUTH` followed by operator capture, or `CAPTURE` for immediate sale. The browser cannot override it. MIT exposes that choice to the operator for saved Card and PayPay instruments. Real-time bank debit and asynchronous methods retain their product-specific execution semantics.
+
+Capture is a contextual lifecycle command on an `AUTHORIZED` transaction. It is therefore presented in the selected API/Webhooks transaction thread—not Checkout and not the saved-instrument selector. The application reserves the command in SQLite, commits, calls GMO `/order/capture`, and then appends the result and paired provider exchange to the original root transaction. A conclusive rejection leaves the authorization open for review; an ambiguous transport/provider failure becomes `UNKNOWN` and must be inquired before any repeat.
 
 ### Real-time bank debit
 

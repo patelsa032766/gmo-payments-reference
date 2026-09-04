@@ -12,8 +12,11 @@ export class OperationsPage implements OnInit {
   protected readonly thread = signal<TransactionThread | null>(null);
   protected readonly selectedEvent = signal<TimelineEvent | null>(null);
   protected readonly loading = signal(true);
+  protected readonly capturing = signal(false);
+  protected readonly actionMessage = signal<string|null>(null);
   protected readonly failed = signal(false);
   protected readonly search = signal(''); protected readonly status = signal(''); protected readonly method = signal(''); protected timezone = '+0900';
+  protected operatorToken='';
   protected timezoneLabel(): string { return this.timezone === '+0900' ? 'Tokyo' : this.timezone === '+0000' ? 'UTC' : 'Los Angeles'; }
   protected methodLabel(method: string): string {
     return ({
@@ -37,6 +40,27 @@ export class OperationsPage implements OnInit {
   protected selectEvent(event: TimelineEvent): void { this.selectedEvent.set(event); }
   protected exchange(): ProviderExchange | null {
     const event = this.selectedEvent(); return this.thread()?.exchanges.find(exchange => exchange.eventId === event?.eventId) ?? null;
+  }
+  protected canCapture(thread:TransactionThread|null=this.thread()):boolean{
+    return !!thread && thread.transaction.canonicalState==='AUTHORIZED'
+      && (thread.transaction.method==='CARD'||thread.transaction.method==='PAYPAY');
+  }
+  protected capture():void{
+    const selected=this.thread();
+    if(!this.canCapture(selected))return;
+    if(!this.operatorToken){this.actionMessage.set('Enter the operator token to capture this authorization.');return;}
+    const transaction=selected!.transaction;
+    if(!window.confirm(`Capture JPY ${transaction.amountJpy.toLocaleString()} for ${transaction.transactionId}? This sends a financial request to GMO.`))return;
+    this.capturing.set(true);this.actionMessage.set(null);
+    this.api.capture(transaction.transactionId,this.operatorToken,crypto.randomUUID()).subscribe({
+      next:result=>{this.capturing.set(false);this.actionMessage.set(result.state==='PAID'
+        ? 'PAID · Capture recorded in this transaction thread.'
+        : `${result.state} · Capture was not completed; review the newest event before another action.`);this.refreshSelected(transaction.transactionId);},
+      error:()=>{this.capturing.set(false);this.actionMessage.set('Capture was not completed. Review the latest transaction event before trying again.');this.refreshSelected(transaction.transactionId);}
+    });
+  }
+  private refreshSelected(transactionId:string):void{
+    this.api.transactions().subscribe(rows=>{this.rows.set(rows);const row=rows.find(item=>item.transactionId===transactionId);if(row)this.selectTransaction(row);});
   }
   protected reload(): void {
     this.loading.set(true); this.failed.set(false);

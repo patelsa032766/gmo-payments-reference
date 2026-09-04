@@ -42,9 +42,12 @@ public final class CheckoutPaymentService {
                     .orElseThrow(() -> new IllegalStateException("Reserved payment result is unavailable"));
         }
 
+        var normalizedDetails = new java.util.LinkedHashMap<String, Object>(details);
+        // Customer input cannot override the versioned merchant policy.
+        normalizedDetails.put("authorizationMode", reservation.context().executionMode().name());
         try {
             return repository.recordSuccess(reservation.context(),
-                    gateway.executeCheckout(reservation.context(), details));
+                    gateway.executeCheckout(reservation.context(), normalizedDetails));
         } catch (PaymentGatewayException exception) {
             String state = exception.outcomeUnknown() ? "UNKNOWN" : "FAILED";
             String summary = exception.outcomeUnknown()

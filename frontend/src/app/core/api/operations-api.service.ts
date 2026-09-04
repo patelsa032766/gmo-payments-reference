@@ -34,6 +34,10 @@ export class OperationsApiService {
   private readonly http = inject(HttpClient);
   transactions(): Observable<TransactionSummary[]> { return this.http.get<TransactionSummary[]>('/api/v1/operations/transactions'); }
   thread(id: string): Observable<TransactionThread> { return this.http.get<TransactionThread>(`/api/v1/operations/transactions/${encodeURIComponent(id)}`); }
+  capture(id:string,operatorToken:string,idempotencyKey:string):Observable<PaymentSubmission>{
+    return this.http.post<PaymentSubmission>(`/api/v1/operations/transactions/${encodeURIComponent(id)}/capture`,{},
+      {headers:{'X-Operator-Token':operatorToken,'Idempotency-Key':idempotencyKey}});
+  }
   instruments(): Observable<PaymentInstrument[]> { return this.http.get<PaymentInstrument[]>('/api/v1/mit/instruments'); }
   submitMit(instrumentId:string,amountJpy:number,merchantReference:string,authorizationMode:string,
             operatorToken:string,idempotencyKey:string):Observable<PaymentSubmission>{

@@ -22,6 +22,10 @@ public interface PaymentGateway {
     PaymentGatewayResult executeKozaDebit(PaymentExecutionContext context, Map<String,Object> instrumentFacts,
                                           String targetDate, String remarks);
 
+    /** Converts an existing Card or PayPay authorization into a completed sale. */
+    PaymentGatewayResult capture(PaymentExecutionContext context, String providerAccessId,
+                                 String providerOrderId);
+
     /** Completes a registration-based checkout after the customer returns from GMO. */
     PaymentContinuationResult continueCheckout(PaymentExecutionContext context,
                                                Map<String, Object> browserReturn);

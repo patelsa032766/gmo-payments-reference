@@ -101,6 +101,14 @@ public class GmoRequestFactory {
         return Map.of("accessId", accessId);
     }
 
+    /** GMO accepts either identifier; supplying both strengthens traceability. */
+    public Map<String, Object> orderCapture(String accessId, String orderId) {
+        var payload = new LinkedHashMap<String, Object>();
+        if (!blank(accessId)) payload.put("accessId", accessId);
+        if (!blank(orderId)) payload.put("orderId", orderId);
+        return payload;
+    }
+
     public Map<String, Object> savedPayPayCharge(CheckoutFacts facts, String memberId,
                                                   String authorizationMode) {
         return Map.of(

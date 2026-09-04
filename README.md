@@ -15,12 +15,12 @@ The approved customer/operator experience is preserved separately in `ui-mock/` 
 
 - Server-side method enablement, ordering, plan rules, eKYC rules, channels, amount thresholds, and localized labels.
 - Versioned configuration drafts with explicit publish/discard commands.
-- Card browser tokenization boundary, first-payment authorization, and reusable-card registration.
-- PayPay recurring-account authorization followed by first-payment authorization.
+- Card browser tokenization, versioned CIT auth/immediate-sale policy, reusable-card registration, and contextual capture.
+- PayPay recurring-account authorization followed by a configured first authorization or immediate sale, with contextual capture where required.
 - Real-time bank debit (`口座直結決済`) registration followed immediately by a debit.
 - Koza Furikae Select (`口座振替（セレクト）`) registration followed by Furikomi instructions for the first premium; later monthly requests use a separate batch workflow.
 - One-time Kombini, Pay-easy, and Furikomi command mappings.
-- Saved Card, PayPay, and real-time bank-debit MIT commands.
+- Saved Card and PayPay MIT commands with operator-selected auth/capture-later or immediate sale, plus real-time bank debit.
 - Exactly one Primary and optionally one Backup active instrument per customer; the newest successful registration becomes Primary.
 - Koza batch reservation/submission with one durable transaction per debit request and asynchronous result ingestion.
 - Append-only transaction threads containing checkout, API, browser return, webhook, retry/inquiry, reconciliation, refund, and chargeback evidence when received.

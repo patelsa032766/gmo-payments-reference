@@ -7,11 +7,12 @@ record PaymentMethodResponse(
         String label,
         String description,
         boolean recurring,
-        int displayOrder) {
+        int displayOrder,
+        String citExecutionMode) {
 
     static PaymentMethodResponse from(EligiblePaymentMethod method) {
         return new PaymentMethodResponse(
                 method.code().apiValue(), method.label(), method.description(),
-                method.recurring(), method.displayOrder());
+                method.recurring(), method.displayOrder(), method.citExecutionMode().name());
     }
 }

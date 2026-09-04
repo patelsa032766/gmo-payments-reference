@@ -21,7 +21,8 @@ public record PaymentMethodConfiguration(
         long maximumAmountJpy,
         Long nonEkycMaximumAmountJpy,
         Set<DistributionChannel> channels,
-        int displayOrder) {
+        int displayOrder,
+        PaymentExecutionMode citExecutionMode) {
 
     public PaymentMethodConfiguration {
         Objects.requireNonNull(code, "code");
@@ -30,12 +31,28 @@ public record PaymentMethodConfiguration(
         Objects.requireNonNull(labelJa, "labelJa");
         Objects.requireNonNull(descriptionJa, "descriptionJa");
         channels = Set.copyOf(Objects.requireNonNull(channels, "channels"));
+        Objects.requireNonNull(citExecutionMode, "citExecutionMode");
+        if (citExecutionMode == PaymentExecutionMode.AUTH
+                && code != PaymentMethodCode.CARD && code != PaymentMethodCode.PAYPAY) {
+            throw new IllegalArgumentException("AUTH is supported only for Card and PayPay");
+        }
         if (minimumAmountJpy < 0 || maximumAmountJpy < minimumAmountJpy) {
             throw new IllegalArgumentException("Invalid JPY amount range for " + code);
         }
         if (displayOrder < 1) {
             throw new IllegalArgumentException("displayOrder must be positive");
         }
+    }
+
+    /** Convenience for products/tests that retain the immediate-sale default. */
+    public PaymentMethodConfiguration(PaymentMethodCode code, String labelEn, String descriptionEn,
+                                      String labelJa, String descriptionJa, boolean enabled,
+                                      boolean recurring, boolean monthlyOnly, long minimumAmountJpy,
+                                      long maximumAmountJpy, Long nonEkycMaximumAmountJpy,
+                                      Set<DistributionChannel> channels, int displayOrder) {
+        this(code, labelEn, descriptionEn, labelJa, descriptionJa, enabled, recurring,
+                monthlyOnly, minimumAmountJpy, maximumAmountJpy, nonEkycMaximumAmountJpy,
+                channels, displayOrder, PaymentExecutionMode.CAPTURE);
     }
 
     public String label(String language) {

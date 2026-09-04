@@ -19,7 +19,7 @@ With `scripts/run-backend.sh`, the file resolves to `backend/bootstrap/runtime/g
 | Table | Purpose | Principal writer |
 | --- | --- | --- |
 | `configuration_release` | Immutable draft/published/retired versions | Configuration use case |
-| `payment_method_configuration` | Eligibility, order, thresholds, channels, EN/JA copy | Configuration use case |
+| `payment_method_configuration` | Eligibility, order, thresholds, channels, EN/JA copy, and Card/PayPay CIT execution policy | Configuration use case |
 | `customer` | Local customer identity/reference | Checkout/MIT bootstrap |
 | `application_record` | Policy/application, amount, plan, customer, chosen configuration version | Checkout |
 | `payment_instrument` | Masked provider reference, lifecycle, optimistic version, Primary/Backup role | Successful registration and preference command |
@@ -28,7 +28,7 @@ With `scripts/run-backend.sh`, the file resolves to `backend/bootstrap/runtime/g
 | `payment_event` | Append-only business and transport evidence | Every state-changing use case |
 | `provider_exchange` | Sanitized outbound request and inbound response paired to an event | GMO adapter result persistence |
 | `inbound_message` | Deduplicated webhook/protocol envelope and linkage state | Webhook receiver |
-| `idempotency_record` | Command key, request fingerprint, execution status, linked result | Checkout/MIT command reservation |
+| `idempotency_record` | Command key, request fingerprint, execution status, linked result | Checkout/MIT/capture command reservation |
 | `debit_batch` | Monthly Koza cycle/submission state | Koza batch use case |
 | `debit_batch_item` | One Koza instrument and transaction per requested debit | Koza batch use case |
 | `reconciliation_file` | Filename, checksum, import/archive state | SFTP importer |
@@ -65,7 +65,7 @@ Provider IDs can appear on `payment_transaction` and `payment_resource`. All cor
 
 Checkout first resolves the single `PUBLISHED` release, then reads method rows using that fixed release ID. It cannot mix methods from two versions while publication occurs.
 
-Editing creates or replaces one `DRAFT` release. Publishing runs as a short transaction that retires the previous published row and publishes the draft. Transactions retain their configuration version for later explanation.
+Editing creates or replaces one `DRAFT` release. Publishing runs as a short transaction that retires the previous published row and publishes the draft. Transactions retain their configuration version for later explanation. `cit_execution_mode` stores `AUTH` or `CAPTURE`; checkout resolves it from the application’s pinned release and overwrites any browser-supplied value.
 
 ## Payment command interaction
 

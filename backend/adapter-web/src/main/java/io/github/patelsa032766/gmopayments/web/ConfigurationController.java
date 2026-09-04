@@ -52,7 +52,8 @@ public final class ConfigurationController {
         authorize(token);
         var methods=request.methods().stream().map(item -> new ConfigurationMethodUpdate(
                 PaymentMethodCode.fromApiValue(item.code()), item.enabled(), item.recurring(), item.monthlyOnly(),
-                item.minimumAmountJpy(), item.maximumAmountJpy(), item.displayOrder())).toList();
+                item.minimumAmountJpy(), item.maximumAmountJpy(), item.displayOrder(),
+                io.github.patelsa032766.gmopayments.domain.PaymentExecutionMode.from(item.citExecutionMode()))).toList();
         return ActiveConfigurationResponse.from(administration.saveDraft(methods));
     }
 
@@ -94,11 +95,13 @@ public final class ConfigurationController {
             boolean monthlyOnly,
             long minimumAmountJpy,
             long maximumAmountJpy,
-            int displayOrder) {
+            int displayOrder,
+            String citExecutionMode) {
         static ConfiguredMethodResponse from(io.github.patelsa032766.gmopayments.domain.PaymentMethodConfiguration method) {
             return new ConfiguredMethodResponse(
                     method.code().apiValue(), method.enabled(), method.recurring(), method.monthlyOnly(),
-                    method.minimumAmountJpy(), method.maximumAmountJpy(), method.displayOrder());
+                    method.minimumAmountJpy(), method.maximumAmountJpy(), method.displayOrder(),
+                    method.citExecutionMode().name());
         }
     }
 }

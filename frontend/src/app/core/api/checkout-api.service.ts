@@ -4,9 +4,10 @@ import { Observable } from 'rxjs';
 
 export type CheckoutLanguage = 'en' | 'ja';
 export type DistributionChannel = 'PA' | 'IA' | 'FI';
-export interface PaymentMethodOption { code: string; label: string; description: string; recurring: boolean; displayOrder: number; }
+export type PaymentExecutionMode = 'AUTH' | 'CAPTURE';
+export interface PaymentMethodOption { code: string; label: string; description: string; recurring: boolean; displayOrder: number; citExecutionMode: PaymentExecutionMode; }
 export interface CheckoutOptions { configurationVersion: number; methods: PaymentMethodOption[]; }
-export interface ConfiguredMethod { code: string; enabled: boolean; recurring: boolean; monthlyOnly: boolean; minimumAmountJpy: number; maximumAmountJpy: number; displayOrder: number; }
+export interface ConfiguredMethod { code: string; enabled: boolean; recurring: boolean; monthlyOnly: boolean; minimumAmountJpy: number; maximumAmountJpy: number; displayOrder: number; citExecutionMode: PaymentExecutionMode; }
 export interface ActiveConfiguration { version: number; publishedAt: string; publishedBy: string; methods: ConfiguredMethod[]; }
 export interface ConfigurationWorkspace { active: ActiveConfiguration; draft: ActiveConfiguration | null; }
 export interface CheckoutOptionsQuery { channel: DistributionChannel; amountJpy: number; monthly: boolean; ekycVerified: boolean; language: CheckoutLanguage; }

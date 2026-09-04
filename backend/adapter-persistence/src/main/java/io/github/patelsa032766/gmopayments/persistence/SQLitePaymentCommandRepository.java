@@ -7,6 +7,7 @@ import io.github.patelsa032766.gmopayments.domain.PaymentExecutionContext;
 import io.github.patelsa032766.gmopayments.domain.PaymentGatewayResult;
 import io.github.patelsa032766.gmopayments.domain.PaymentContinuationResult;
 import io.github.patelsa032766.gmopayments.domain.PaymentMethodCode;
+import io.github.patelsa032766.gmopayments.domain.PaymentExecutionMode;
 import io.github.patelsa032766.gmopayments.domain.PaymentNextAction;
 import io.github.patelsa032766.gmopayments.domain.ProviderCallEvidence;
 import io.github.patelsa032766.gmopayments.domain.PaymentSubmissionResult;
@@ -64,22 +65,26 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
 
             var application = jdbc.sql("""
                     SELECT a.id application_id, a.application_number, a.amount_jpy,
-                           a.configuration_version, c.id customer_id, c.customer_code, c.full_name
+                           a.configuration_version, c.id customer_id, c.customer_code, c.full_name,
+                           m.cit_execution_mode
                     FROM application_record a
                     JOIN customer c ON c.id = a.customer_id
+                    JOIN configuration_release r ON r.version = a.configuration_version
+                    JOIN payment_method_configuration m ON m.release_id = r.id AND m.code = :method
                     WHERE a.application_number = :applicationNumber
-                    """).param("applicationNumber", applicationNumber)
+                    """).param("applicationNumber", applicationNumber).param("method", method.apiValue())
                     .query((rs, rowNum) -> new ApplicationRow(rs.getLong("application_id"),
                             rs.getString("application_number"), rs.getLong("amount_jpy"),
                             rs.getInt("configuration_version"), rs.getLong("customer_id"),
-                            rs.getString("customer_code"), rs.getString("full_name")))
+                            rs.getString("customer_code"), rs.getString("full_name"),
+                            PaymentExecutionMode.from(rs.getString("cit_execution_mode"))))
                     .optional().orElseThrow(() -> new IllegalArgumentException(
                             "Unknown application: " + applicationNumber));
 
             String transactionId = "TXN-" + method.apiValue().toUpperCase() + "-" + compactId();
             String correlationId = "CORR-" + UUID.randomUUID();
             String product = productCode(method);
-            String operation = operation(method);
+            String operation = operation(method, application.executionMode());
             jdbc.sql("""
                     INSERT INTO payment_transaction
                         (transaction_id, application_id, customer_id, method_code, product_code,
@@ -111,7 +116,7 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
             return new Reservation(new PaymentExecutionContext(transactionId, application.applicationNumber(),
                     application.customerCode(), application.customerName(), "A. Suzuki", "Example Insurance",
                     method, product, "CIT", operation, application.amountJpy(),
-                    application.configurationVersion(), correlationId), false);
+                    application.configurationVersion(), correlationId, application.executionMode()), false);
         }));
     }
 
@@ -337,17 +342,21 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                 SELECT t.transaction_id, a.application_number, c.customer_code, c.full_name,
                        t.method_code, t.product_code, t.initiation_type, t.operation, t.amount_jpy,
                        t.configuration_version,
-                       (SELECT correlation_id FROM payment_event WHERE transaction_id = t.id ORDER BY id LIMIT 1) correlation_id
+                       (SELECT correlation_id FROM payment_event WHERE transaction_id = t.id ORDER BY id LIMIT 1) correlation_id,
+                       m.cit_execution_mode
                 FROM payment_transaction t
                 JOIN application_record a ON a.id = t.application_id
                 JOIN customer c ON c.id = t.customer_id
+                JOIN configuration_release r ON r.version = t.configuration_version
+                JOIN payment_method_configuration m ON m.release_id = r.id AND m.code = t.method_code
                 WHERE t.transaction_id = :transactionId
                 """).param("transactionId", transactionId).query((rs, rowNum) -> new PaymentExecutionContext(
                 rs.getString("transaction_id"), rs.getString("application_number"),
                 rs.getString("customer_code"), rs.getString("full_name"), "A. Suzuki", "Example Insurance",
                 PaymentMethodCode.fromApiValue(rs.getString("method_code")), rs.getString("product_code"),
                 rs.getString("initiation_type"), rs.getString("operation"), rs.getLong("amount_jpy"),
-                rs.getInt("configuration_version"), rs.getString("correlation_id")))
+                rs.getInt("configuration_version"), rs.getString("correlation_id"),
+                PaymentExecutionMode.from(rs.getString("cit_execution_mode"))))
                 .optional().orElseThrow(() -> new IllegalStateException("Reserved transaction was not found"));
     }
 
@@ -575,9 +584,9 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
         };
     }
 
-    private static String operation(PaymentMethodCode method) {
+    private static String operation(PaymentMethodCode method, PaymentExecutionMode executionMode) {
         return switch (method) {
-            case CARD, PAYPAY -> "AUTHORIZE";
+            case CARD, PAYPAY -> executionMode == PaymentExecutionMode.AUTH ? "AUTHORIZE" : "SALE";
             case BANK_DIRECT_REALTIME -> "REGISTER_AND_DEBIT";
             case KOZA_FURIKAE_SELECT -> "REGISTER_MANDATE_AND_ISSUE_FIRST_PAYMENT";
             case KOMBINI, PAYEASY, FURIKOMI -> "ISSUE_INSTRUCTIONS";
@@ -608,5 +617,6 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
     private record ContinuationRow(String transactionId, String state) {}
     private record ApplicationRow(long id, String applicationNumber, long amountJpy,
                                   int configurationVersion, long customerId,
-                                  String customerCode, String customerName) {}
+                                  String customerCode, String customerName,
+                                  PaymentExecutionMode executionMode) {}
 }
