@@ -27,6 +27,17 @@ declare global {
 @Injectable({ providedIn: 'root' })
 export class GmoCardTokenService {
   private loadedUrl: string | null = null;
+  private loading: Promise<void> | null = null;
+
+  /**
+   * Mirrors the proven Flask integration by loading and initializing GMO when
+   * the checkout page starts, rather than racing SDK/device-fingerprint setup
+   * against the customer's Continue click.
+   */
+  async initialize(configuration: BrowserPaymentConfiguration): Promise<void> {
+    if (!configuration.liveCallsEnabled) return;
+    await this.tokenClient(configuration);
+  }
 
   async tokenize(configuration: BrowserPaymentConfiguration,
                  card: Record<string, unknown>): Promise<{ token: string; holderName: string }> {
@@ -36,24 +47,7 @@ export class GmoCardTokenService {
     if (!configuration.shopId || !configuration.mpTokenJsUrl) {
       throw new Error('Card tokenization is not configured for this environment.');
     }
-    await this.load(configuration.mpTokenJsUrl);
-    const loadedApi = window.Multipayment;
-    if (!loadedApi) {
-      throw new Error('GMO card tokenization did not initialize.');
-    }
-
-    /*
-     * GMO's browser library deliberately changes the global object during
-     * initialization. Before init(), window.Multipayment exposes only init().
-     * The init() call then replaces that global with the client exposing
-     * getToken(). Re-reading the global is therefore required; retaining the
-     * bootstrap object would make api.getToken undefined.
-     */
-    if ('init' in loadedApi) loadedApi.init(configuration.shopId);
-    const tokenApi = 'getToken' in loadedApi ? loadedApi : window.Multipayment;
-    if (!tokenApi || !('getToken' in tokenApi)) {
-      throw new Error('The GMO card security library did not expose its tokenization client.');
-    }
+    const tokenApi = await this.tokenClient(configuration);
     const number = String(card['cardNumber'] ?? '').replace(/\D/g, '');
     const expiry = String(card['expiry'] ?? '').replace(/\D/g, '');
     const securityCode = String(card['securityCode'] ?? '').replace(/\D/g, '');
@@ -87,7 +81,7 @@ export class GmoCardTokenService {
       function handleGmoTokenResult(response: MultipaymentTokenResponse): void {
         const token = response.tokenObject?.token?.trim();
         if (response.resultCode !== '000' || !token) {
-          fail('GMO could not tokenize this card. Check the details and try again.');
+          fail(`GMO could not tokenize this card (result ${response.resultCode}). Check the details and try again.`);
         } else succeed(token);
       }
 
@@ -110,14 +104,42 @@ export class GmoCardTokenService {
     });
   }
 
+  private async tokenClient(configuration: BrowserPaymentConfiguration): Promise<MultipaymentTokenApi> {
+    if (!configuration.shopId || !configuration.mpTokenJsUrl) {
+      throw new Error('Card tokenization is not configured for this environment.');
+    }
+    await this.load(configuration.mpTokenJsUrl);
+    const loadedApi = window.Multipayment;
+    if (!loadedApi) throw new Error('GMO card tokenization did not initialize.');
+
+    /*
+     * GMO's browser library deliberately changes the global object during
+     * initialization. Before init(), window.Multipayment exposes only init().
+     * The init() call then replaces that global with the client exposing
+     * getToken(). Re-reading the global is therefore required; retaining the
+     * bootstrap object would make api.getToken undefined.
+     */
+    if ('init' in loadedApi) loadedApi.init(configuration.shopId);
+    const initializedApi = 'getToken' in loadedApi ? loadedApi : window.Multipayment;
+    if (!initializedApi || !('getToken' in initializedApi)) {
+      throw new Error('The GMO card security library did not expose its tokenization client.');
+    }
+    return initializedApi;
+  }
+
   private load(url: string): Promise<void> {
     if (this.loadedUrl === url && window.Multipayment) return Promise.resolve();
-    return new Promise((resolve, reject) => {
+    if (this.loading) return this.loading;
+    this.loading = new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = url; script.async = true;
-      script.onload = () => { this.loadedUrl = url; resolve(); };
-      script.onerror = () => reject(new Error('The GMO card security library could not be loaded.'));
+      script.onload = () => { this.loadedUrl = url; this.loading = null; resolve(); };
+      script.onerror = () => {
+        this.loading = null;
+        reject(new Error('The GMO card security library could not be loaded.'));
+      };
       document.head.appendChild(script);
     });
+    return this.loading;
   }
 }

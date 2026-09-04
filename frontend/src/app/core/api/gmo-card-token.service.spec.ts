@@ -44,6 +44,23 @@ describe('GmoCardTokenService', () => {
     expect(result).toEqual({ token: 'sandbox-token', holderName: 'TARO MIHON' });
   });
 
+  it('preloads and initializes the GMO client before checkout submission', async () => {
+    const service = TestBed.inject(GmoCardTokenService);
+    (service as unknown as { load: (url: string) => Promise<void> }).load = async () => undefined;
+    let initializedWith = '';
+    window.Multipayment = {
+      init: shopId => {
+        initializedWith = shopId;
+        window.Multipayment = { getToken: () => undefined };
+      },
+    };
+
+    await service.initialize(configuration);
+
+    expect(initializedWith).toBe('test-shop');
+    expect(window.Multipayment && 'getToken' in window.Multipayment).toBe(true);
+  });
+
   it('reuses an already initialized token client for a customer retry', async () => {
     const service = TestBed.inject(GmoCardTokenService);
     (service as unknown as { load: (url: string) => Promise<void> }).load = async () => undefined;

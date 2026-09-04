@@ -101,7 +101,14 @@ export class CheckoutPage implements OnInit {
   private loadMethods(): void {
     this.loading.set(true);
     this.api.getBrowserConfiguration().subscribe({
-      next: configuration => this.browserConfiguration.set(configuration),
+      next: configuration => {
+        this.browserConfiguration.set(configuration);
+        // Flask's known-good integration initializes GMO as the page loads.
+        // Prewarming here gives MpToken.js device-fingerprint setup time to
+        // settle before the customer submits the card form. tokenize() still
+        // initializes defensively if this best-effort preload fails.
+        void this.cardTokens.initialize(configuration).catch(() => undefined);
+      },
       error: () => this.error.set('Payment security configuration could not be loaded.'),
     });
     this.api.getOptions({ channel: 'PA', amountJpy: this.amountJpy, monthly: true, ekycVerified: true, language: 'en' })
