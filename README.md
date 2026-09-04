@@ -121,6 +121,12 @@ The environment names are intentionally compatible with the companion Flask impl
 
 Card PAN/CVC never enters Spring Boot. Angular loads GMO's MP Token browser library from `GMO_MP_TOKEN_JS_URL`, receives a one-use token, and sends only that token and the cardholder name to the backend.
 
+The application number is a stable insurance-business reference and is sent in
+GMO client field 1. Every checkout or MIT attempt receives a separate local
+transaction ID, which is used as GMO's `orderId`. This prevents a customer retry
+from colliding with an earlier authorization while preserving end-to-end
+application correlation.
+
 Switching from simulation to live mode does not rewrite historical transaction
 evidence. Prototype rows remain labelled as simulated in the transaction thread
 and deliberately do not offer a Capture action; only a new, successful GMO

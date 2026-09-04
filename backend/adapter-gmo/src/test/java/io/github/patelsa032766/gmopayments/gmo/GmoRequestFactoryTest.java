@@ -20,7 +20,8 @@ class GmoRequestFactoryTest {
         properties.setPublicBaseUrl("https://public.example");
         properties.setWebhooksEnabled(false);
         factory = new GmoRequestFactory(properties);
-        facts = new GmoRequestFactory.CheckoutFacts("APP-1", "CUST-1", "Aiko Tanaka",
+        facts = new GmoRequestFactory.CheckoutFacts("APP-1", "TXN-CARD-UNIQUE-1",
+                "CUST-1", "Aiko Tanaka",
                 "Agent A", "Company A", 10_000, "CIT");
     }
 
@@ -38,9 +39,20 @@ class GmoRequestFactoryTest {
 
         assertThat(payload.toString()).contains("walletAuthorizationInformation")
                 .contains("createNewMember=true")
+                .contains("orderId=TXN-CARD-UNIQUE-1")
                 .contains("transactionType=MIT")
                 .doesNotContain("amount=");
         assertThat(factory.orderInquiry("access-123")).containsEntry("accessId", "access-123");
+    }
+
+    @Test
+    void providerOrderIsUniqueWhileApplicationCorrelationRemainsStable() {
+        var payload = factory.cardCharge(facts, "one-use-token", "AIKO TANAKA", "CAPTURE");
+
+        assertThat(payload.toString())
+                .contains("orderId=TXN-CARD-UNIQUE-1")
+                .contains("clientField1=APP-1")
+                .contains("application=APP-1");
     }
 
     @Test

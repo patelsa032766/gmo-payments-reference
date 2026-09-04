@@ -82,7 +82,7 @@ public class GmoRequestFactory {
 
     public Map<String, Object> payPayRecurringRegistration(CheckoutFacts facts) {
         var order = new LinkedHashMap<String, Object>();
-        order.put("orderId", facts.applicationNumber());
+        order.put("orderId", facts.providerOrderId());
         order.put("transactionType", "MIT");
         order.put("clientFields", clientFields(facts));
         return Map.of(
@@ -157,7 +157,7 @@ public class GmoRequestFactory {
         var fields = linkedFields(
                 "ShopID", properties.getShopId(), "ShopPass", properties.getShopPass(),
                 "SiteID", properties.getSiteId(), "SitePass", properties.getSitePass(),
-                "MemberID", facts.customerCode(), "OrderID", facts.applicationNumber(),
+                "MemberID", facts.customerCode(), "OrderID", facts.providerOrderId(),
                 "Amount", Long.toString(facts.amountJpy()));
         addClientFields(fields, facts);
         return fields;
@@ -175,7 +175,7 @@ public class GmoRequestFactory {
         var fields = linkedFields(
                 "ShopID", properties.getShopId(), "ShopPass", properties.getShopPass(),
                 "AccessID", accessId, "AccessPass", accessPass,
-                "OrderID", facts.applicationNumber());
+                "OrderID", facts.providerOrderId());
         addClientFields(fields, facts);
         fields.put("ClientFieldFlag", "1");
         return fields;
@@ -241,7 +241,7 @@ public class GmoRequestFactory {
     }
 
     private static Map<String, Object> order(CheckoutFacts facts, String initiationType) {
-        return Map.of("orderId", facts.applicationNumber(), "amount", Long.toString(facts.amountJpy()),
+        return Map.of("orderId", facts.providerOrderId(), "amount", Long.toString(facts.amountJpy()),
                 "currency", "JPY", "transactionType", initiationType,
                 "clientFields", clientFields(facts));
     }
@@ -279,9 +279,19 @@ public class GmoRequestFactory {
     private static String digits(String value) { return value.replaceAll("[^0-9]", ""); }
     private static boolean blank(String value) { return value == null || value.isBlank(); }
 
-    public record CheckoutFacts(String applicationNumber, String customerCode, String customerName,
+    public record CheckoutFacts(String applicationNumber, String providerOrderId,
+                                String customerCode, String customerName,
                                 String agentName, String companyName, long amountJpy,
-                                String initiationType) {}
+                                String initiationType) {
+        public CheckoutFacts {
+            if (applicationNumber == null || applicationNumber.isBlank()) {
+                throw new IllegalArgumentException("Application number is required");
+            }
+            if (providerOrderId == null || providerOrderId.isBlank()) {
+                throw new IllegalArgumentException("A unique provider order ID is required");
+            }
+        }
+    }
 
     public record KozaAccount(String bankCode, String branchCode, String accountType,
                               String accountNumber, String accountNameKana,

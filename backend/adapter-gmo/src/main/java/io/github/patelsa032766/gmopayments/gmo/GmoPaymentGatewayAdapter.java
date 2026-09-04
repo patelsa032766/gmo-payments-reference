@@ -85,7 +85,7 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
                     Map.of("targetDate", targetDate), "IDPASS", "SimulatedKozaDebit", null, 200, 0,
                     Map.of("memberId", "[MASKED]", "targetDate", targetDate), Map.of("Status", "REQSUCCESS"));
         }
-        var entry = requests.kozaBatchEntry(context.applicationNumber(), context.amountJpy());
+        var entry = requests.kozaBatchEntry(context.transactionId(), context.amountJpy());
         var entryResult = idPass.post("EntryTranBankaccount.idPass", entry, true);
         String accessId = first(entryResult.rawPayload(), "AccessID", "AccessId");
         String accessPass = first(entryResult.rawPayload(), "AccessPass", "AccessPASS");
@@ -93,7 +93,7 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
             throw new GmoProviderException("GMO Koza entry omitted access credentials",
                     entryResult.statusCode(), false, false, entryResult.sanitizedPayload(), null);
         }
-        var execution = requests.kozaBatchExecution(context.applicationNumber(), accessId, accessPass,
+        var execution = requests.kozaBatchExecution(context.transactionId(), accessId, accessPass,
                 required(instrument, "memberId"), targetDate, remarks);
         var result = idPass.post("ExecTranBankaccount.idPass", execution, true);
         String providerStatus = status(result.rawPayload(), "REQSUCCESS");
@@ -601,7 +601,11 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
     }
 
     private static GmoRequestFactory.CheckoutFacts facts(PaymentExecutionContext context) {
-        return new GmoRequestFactory.CheckoutFacts(context.applicationNumber(), context.customerCode(),
+        // The insurance application number is stable across retries and remains
+        // in clientField1 for business correlation. GMO order IDs identify one
+        // financial attempt and therefore use our unique transaction ID.
+        return new GmoRequestFactory.CheckoutFacts(context.applicationNumber(), context.transactionId(),
+                context.customerCode(),
                 context.customerName(), context.agentName(), context.companyName(), context.amountJpy(),
                 context.initiationType());
     }
