@@ -97,17 +97,18 @@ database. The Configuration page's **Save changes** action writes a draft and
 publishes it as one active version; the choice then survives navigation and
 application restarts.
 
-For low-friction local UI testing, **Require token for configuration changes**
-can be disabled in the saved test scenario. This switch is deliberately narrow:
-it affects only configuration draft/publish/discard and scenario edits. Capture,
-MIT charges, instrument-role changes, Koza batch submission, and reconciliation
-imports always require the operator credential. Production deployments should
-keep configuration authentication enabled and replace the shared development
-token with real identity and role-based authorization.
+For low-friction local UI testing, **Require token for operator actions** can be
+disabled in the saved test scenario. It is one global switch covering
+configuration draft/publish/discard, capture, MIT charges, instrument-role
+changes, Koza batch submission, and manual reconciliation imports. The
+environment credential is never written to SQLite; SQLite stores only whether
+the local demo should enforce it.
 
-Turning the switch off enables **Save changes** immediately and does not require
-a token for that save. This behavior exists for local demonstration convenience;
-do not expose the Configuration route publicly with this option available.
+Turning the switch off enables these operator actions immediately without a
+credential. This behavior exists strictly for local demonstration convenience.
+Production deployments must keep it enabled, must not expose the Configuration
+route as an unauthenticated control plane, and should replace the shared token
+with real identity and role-based authorization.
 
 Configuration precedence is:
 

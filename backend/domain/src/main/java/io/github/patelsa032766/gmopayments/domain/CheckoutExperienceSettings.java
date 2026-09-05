@@ -4,7 +4,7 @@ import java.util.List;
 
 /** Developer-facing checkout scenario; no GMO credential or sensitive payment data is stored. */
 public record CheckoutExperienceSettings(String selectedApplicationNumber,
-        boolean configurationTokenRequired, String checkoutLanguage, List<CheckoutScenario> customers) {
+        boolean operatorTokenRequired, String checkoutLanguage, List<CheckoutScenario> customers) {
     public CheckoutExperienceSettings { customers = List.copyOf(customers); }
     public CheckoutScenario selected() {
         return customers.stream().filter(item -> item.applicationNumber().equals(selectedApplicationNumber))

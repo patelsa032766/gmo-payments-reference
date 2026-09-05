@@ -1,7 +1,7 @@
 <section class="panel">
   <header>
     <div><p class="eyebrow">Merchant-initiated payments</p><h1>Run recurring payments</h1><p class="lead">Charge an individual saved method or prepare a monthly Koza Furikae batch. Sensitive account data never appears here.</p></div>
-    <label class="token">Operator token<input [(ngModel)]="operatorToken" type="password" autocomplete="off" placeholder="Required for actions"></label>
+    @if(operatorTokenRequired()){<label class="token">Operator token<input [(ngModel)]="operatorToken" type="password" autocomplete="off" placeholder="Required for actions"></label>}@else{<p class="token">Operator token disabled for local testing</p>}
   </header>
   <nav class="subnav"><button [class.active]="section()==='individual'" (click)="section.set('individual')">Individual recurring payment</button><button [class.active]="section()==='koza'" (click)="section.set('koza')">Monthly Koza Furikae batch</button></nav>
   @if(section()==='individual'){

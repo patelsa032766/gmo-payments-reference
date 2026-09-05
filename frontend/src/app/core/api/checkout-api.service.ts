@@ -15,7 +15,7 @@ export interface CheckoutScenario {
   channel:DistributionChannel; paymentPlan:string; ekycVerified:boolean; amountJpy:number;
 }
 export interface CheckoutExperienceSettings {
-  selectedApplicationNumber:string; configurationTokenRequired:boolean; checkoutLanguage:CheckoutLanguage; customers:CheckoutScenario[];
+  selectedApplicationNumber:string; operatorTokenRequired:boolean; checkoutLanguage:CheckoutLanguage; customers:CheckoutScenario[];
 }
 export interface CheckoutOptionsQuery { channel: DistributionChannel; amountJpy: number; monthly: boolean; ekycVerified: boolean; language: CheckoutLanguage; }
 export interface BrowserPaymentConfiguration {
@@ -63,9 +63,9 @@ export class CheckoutApiService {
     return this.http.get<CheckoutExperienceSettings>('/api/v1/configuration/experience');
   }
   saveCheckoutExperience(applicationNumber:string,amountJpy:number,
-                         configurationTokenRequired:boolean,checkoutLanguage:CheckoutLanguage,operatorToken:string):Observable<CheckoutExperienceSettings>{
+                         operatorTokenRequired:boolean,checkoutLanguage:CheckoutLanguage,operatorToken:string):Observable<CheckoutExperienceSettings>{
     return this.http.put<CheckoutExperienceSettings>('/api/v1/configuration/experience',
-      {applicationNumber,amountJpy,configurationTokenRequired,checkoutLanguage},
+      {applicationNumber,amountJpy,operatorTokenRequired,checkoutLanguage},
       {headers:{'X-Operator-Token':operatorToken}});
   }
   saveConfigurationDraft(methods: ConfiguredMethod[], operatorToken: string): Observable<ActiveConfiguration> {

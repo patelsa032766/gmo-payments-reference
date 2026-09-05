@@ -12,7 +12,7 @@ describe('CheckoutPage', () => {
         useValue: {
           getCheckoutExperience: () => of({
             selectedApplicationNumber: 'APP-20260821-001',
-            configurationTokenRequired: true,
+            operatorTokenRequired: true,
             checkoutLanguage: 'en',
             customers: [{
               applicationNumber: 'APP-20260821-001', customerCode: 'CUST-10042',

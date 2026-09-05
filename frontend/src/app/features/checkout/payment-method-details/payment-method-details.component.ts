@@ -89,6 +89,26 @@ export class PaymentMethodDetailsComponent {
   }
 
   protected changed(): void {
-    this.detailsChange.emit({ ...this.details });
+    this.detailsChange.emit(this.detailsForMethod());
+  }
+
+  /**
+   * Emit only the fields owned by the selected payment product. The component
+   * keeps one internal form model so every accordion can reuse the same compact
+   * templates, but leaking that complete model would send empty card keys with
+   * PayPay and correctly trigger the backend's raw-PAN defense.
+   */
+  private detailsForMethod(): Record<string, unknown> {
+    const fields: Record<string, readonly string[]> = {
+      card: ['cardNumber', 'expiry', 'securityCode', 'holderName'],
+      paypay: [],
+      bankDirect: ['bankCode', 'accountType', 'accountNumber', 'accountNameKana'],
+      kozaFurikae: ['bankCode', 'branchCode', 'accountType', 'accountNumber', 'accountNameKana'],
+      kombini: ['konbiniCode', 'nameKana', 'email', 'phone', 'deliveryChannel'],
+      payeasy: ['nameKana', 'email', 'phone', 'deliveryChannel'],
+      furikomi: ['nameKana', 'email', 'phone', 'deliveryChannel'],
+    };
+    return Object.fromEntries((fields[this.method().code] ?? [])
+      .map(key => [key, this.details[key]]));
   }
 }

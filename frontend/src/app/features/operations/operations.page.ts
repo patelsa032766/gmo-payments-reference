@@ -1,12 +1,14 @@
 import { DatePipe, JsonPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { CheckoutApiService } from '../../core/api/checkout-api.service';
 import { OperationsApiService, ProviderExchange, TimelineEvent, TransactionSummary, TransactionThread } from '../../core/api/operations-api.service';
 
 /** Sanitized payment ledger and evidence explorer backed by SQLite. */
 @Component({ changeDetection: ChangeDetectionStrategy.OnPush, imports: [DatePipe, JsonPipe, FormsModule], selector: 'app-operations-page', styleUrl: './operations.page.scss', templateUrl: './operations.page.html' })
 export class OperationsPage implements OnInit {
   private readonly api = inject(OperationsApiService);
+  private readonly checkoutApi = inject(CheckoutApiService);
   protected readonly section = signal<'transactions'|'webhooks'|'sftp'>('transactions');
   protected readonly rows = signal<TransactionSummary[]>([]);
   protected readonly thread = signal<TransactionThread | null>(null);
@@ -15,6 +17,7 @@ export class OperationsPage implements OnInit {
   protected readonly capturing = signal(false);
   protected readonly actionMessage = signal<string|null>(null);
   protected readonly failed = signal(false);
+  protected readonly operatorTokenRequired = signal(true);
   protected readonly search = signal(''); protected readonly status = signal(''); protected readonly method = signal(''); protected timezone = '+0900';
   protected operatorToken='';
   protected timezoneLabel(): string { return this.timezone === '+0900' ? 'Tokyo' : this.timezone === '+0000' ? 'UTC' : 'Los Angeles'; }
@@ -32,7 +35,11 @@ export class OperationsPage implements OnInit {
       && (!this.status() || row.canonicalState === this.status()) && (!this.method() || row.method === this.method());
   }));
 
-  ngOnInit(): void { this.reload(); }
+  ngOnInit(): void {
+    this.checkoutApi.getCheckoutExperience().subscribe(settings =>
+      this.operatorTokenRequired.set(settings.operatorTokenRequired));
+    this.reload();
+  }
   protected switchSection(value: 'transactions'|'webhooks'|'sftp'): void { this.section.set(value); }
   protected selectTransaction(row: TransactionSummary): void {
     this.api.thread(row.transactionId).subscribe(thread => { this.thread.set(thread); this.selectedEvent.set(thread.events.at(-1) ?? null); });
@@ -55,7 +62,7 @@ export class OperationsPage implements OnInit {
   protected capture():void{
     const selected=this.thread();
     if(!this.canCapture(selected))return;
-    if(!this.operatorToken){this.actionMessage.set('Enter the operator token to capture this authorization.');return;}
+    if(this.operatorTokenRequired()&&!this.operatorToken){this.actionMessage.set('Enter the operator token to capture this authorization.');return;}
     const transaction=selected!.transaction;
     if(!window.confirm(`Capture JPY ${transaction.amountJpy.toLocaleString()} for ${transaction.transactionId}? This sends a financial request to GMO.`))return;
     this.capturing.set(true);this.actionMessage.set(null);

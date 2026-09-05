@@ -5,12 +5,14 @@ import io.github.patelsa032766.gmopayments.application.service.CheckoutPaymentSe
 import io.github.patelsa032766.gmopayments.application.service.CheckoutExperienceService;
 import io.github.patelsa032766.gmopayments.application.service.CapturePaymentService;
 import io.github.patelsa032766.gmopayments.application.service.PaymentOperationsQueryService;
+import io.github.patelsa032766.gmopayments.web.OperatorActionGuard;
 import io.github.patelsa032766.gmopayments.domain.PaymentMethodCode;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.util.Map;
 import java.util.UUID;
@@ -34,6 +36,9 @@ class GmoPaymentsApplicationTest {
     @Autowired
     private CheckoutExperienceService checkoutExperience;
 
+    @Autowired
+    private OperatorActionGuard operatorActions;
+
     @Test
     void contextLoadsWithMigratedSQLiteConfiguration() {
         // Querying through the application port is intentional: a context-only
@@ -46,7 +51,7 @@ class GmoPaymentsApplicationTest {
     }
 
     @Test
-    void checkoutScenarioPersistsCustomerAmountLanguageAndConfigurationTokenPolicy() {
+    void checkoutScenarioPersistsCustomerAmountLanguageAndOperatorTokenPolicy() {
         var original = checkoutExperience.get();
         var originalCustomer = original.selected();
         try {
@@ -55,12 +60,15 @@ class GmoPaymentsApplicationTest {
             assertThat(changed.selected().customerName()).isEqualTo("Ken Ito");
             assertThat(changed.selected().amountJpy()).isEqualTo(25_000);
             assertThat(changed.checkoutLanguage()).isEqualTo("ja");
-            assertThat(changed.configurationTokenRequired()).isFalse();
+            assertThat(changed.operatorTokenRequired()).isFalse();
+            assertThatCode(() -> operatorActions.requireAuthorized(null))
+                    .as("the global local-test switch bypasses all guarded operator actions")
+                    .doesNotThrowAnyException();
         } finally {
             // Tests share one migrated fixture DB, so restore the original
             // singleton and keep every test independent of execution order.
             checkoutExperience.update(original.selectedApplicationNumber(), originalCustomer.amountJpy(),
-                    original.configurationTokenRequired(), original.checkoutLanguage());
+                    original.operatorTokenRequired(), original.checkoutLanguage());
         }
     }
 

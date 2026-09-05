@@ -183,7 +183,7 @@ Public HTTPS edge
 
 The process should run as a single writer instance for SQLite. Horizontal application replicas require a different persistence adapter or strict ownership that guarantees only one writer. The public edge must prevent bypassing the webhook-header injection path, terminate TLS, apply request-size/rate limits, and separate operator authentication from customer checkout access.
 
-Environment/secret-manager values configure provider credentials, callback origin, ingress token, SFTP identity, and operator token. SQLite configuration releases contain business rules only and can therefore move between environments without exporting secrets.
+Environment/secret-manager values configure provider credentials, callback origin, ingress token, SFTP identity, and the operator token. SQLite stores only the local-demo boolean that decides whether the operator token is enforced; it never stores the credential. The switch applies uniformly to configuration, capture, MIT, payment-order, batch, and manual reconciliation mutations. SQLite configuration releases otherwise contain business rules only and can therefore move between environments without exporting secrets.
 
 ## 13. Key workflows
 
@@ -224,4 +224,4 @@ Koza and real-time bank debit share neither product code nor financial state mac
 
 ## 14. Known production hardening decisions
 
-The reference uses a shared operator token to make local workflows runnable. A production deployment must replace it with organization identity, authorization, CSRF/session policy, audit attribution, and role enforcement. Product contracts, callback allowlists, retention periods, observability export, backup objectives, disaster recovery, and a server database decision remain deployment-owner responsibilities.
+The reference uses a shared operator token to make local workflows runnable and exposes a global, default-on enforcement switch for local testing. Disabling that switch permits every operator mutation without the token and must never be treated as a production security model. A production deployment must keep protection enabled and replace it with organization identity, authorization, CSRF/session policy, audit attribution, and role enforcement. Product contracts, callback allowlists, retention periods, observability export, backup objectives, disaster recovery, and a server database decision remain deployment-owner responsibilities.

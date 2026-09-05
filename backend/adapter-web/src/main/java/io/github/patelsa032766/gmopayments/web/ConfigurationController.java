@@ -56,15 +56,11 @@ public final class ConfigurationController {
     @PutMapping("/experience") CheckoutExperienceSettings updateExperience(
             @RequestHeader(name="X-Operator-Token",required=false) String token,
             @RequestBody ExperienceRequest request) {
-        // The local demo deliberately allows the administrator to turn off
-        // configuration-page authentication without first supplying a token.
-        // This exception is scoped to configuration only: no payment,
-        // capture, MIT, preference, batch, or reconciliation controller reads
-        // this flag. Re-enabling while it is already required still validates
-        // the credential through authorizeConfiguration().
-        if (request.configurationTokenRequired()) authorizeConfiguration(token);
+        // Disabling is deliberately credential-free for local testing. Turning
+        // protection back on proves that the environment token is configured.
+        if (request.operatorTokenRequired()) authorizeCredential(token);
         return experience.update(request.applicationNumber(),request.amountJpy(),
-                request.configurationTokenRequired(),request.checkoutLanguage());
+                request.operatorTokenRequired(),request.checkoutLanguage());
     }
 
     @PutMapping("/draft") ActiveConfigurationResponse saveDraft(
@@ -90,7 +86,11 @@ public final class ConfigurationController {
     }
 
     private void authorizeConfiguration(String token) {
-        if (!experience.get().configurationTokenRequired()) return;
+        if (!experience.get().operatorTokenRequired()) return;
+        authorizeCredential(token);
+    }
+
+    private void authorizeCredential(String token) {
         if(!authorizer.authorized(token)) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
                 "A valid operator credential is required");
     }
@@ -98,7 +98,7 @@ public final class ConfigurationController {
     record WorkspaceResponse(ActiveConfigurationResponse active, ActiveConfigurationResponse draft) {}
     record DraftRequest(List<ConfiguredMethodResponse> methods) {}
     record ExperienceRequest(String applicationNumber,long amountJpy,
-                             boolean configurationTokenRequired,String checkoutLanguage) {}
+                             boolean operatorTokenRequired,String checkoutLanguage) {}
 
     record ActiveConfigurationResponse(
             int version,

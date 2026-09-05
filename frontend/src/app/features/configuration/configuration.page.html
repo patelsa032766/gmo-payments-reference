@@ -94,10 +94,10 @@
         <div class="toggle-grid single">
           <label
             ><span
-              >Require token for configuration changes<small
-                >Financial operator actions always remain protected.</small
+              >Require token for operator actions<small
+                >Applies to configuration, capture, MIT, payment order, batch and reconciliation actions. Disable only for local testing.</small
               ></span
-            ><input type="checkbox" [(ngModel)]="configurationTokenRequired" (change)="changed()"
+            ><input type="checkbox" [(ngModel)]="operatorTokenRequired" (change)="changed()"
           /></label>
         </div>
       </section>

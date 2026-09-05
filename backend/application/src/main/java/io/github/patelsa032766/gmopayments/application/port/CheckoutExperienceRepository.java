@@ -6,5 +6,5 @@ import io.github.patelsa032766.gmopayments.domain.CheckoutExperienceSettings;
 public interface CheckoutExperienceRepository {
     CheckoutExperienceSettings get();
     CheckoutExperienceSettings update(String applicationNumber, long amountJpy,
-                                      boolean configurationTokenRequired, String checkoutLanguage);
+                                      boolean operatorTokenRequired, String checkoutLanguage);
 }

@@ -45,7 +45,7 @@ Additionally verify in simulation mode:
 1. All four checkout accordions expand.
 2. A synthetic card checkout reaches Confirmation.
 3. The new transaction appears first in `/operations` with customer and provider events.
-4. Configuration creates a draft, can discard it, and publishes only with an operator token.
+4. Configuration creates a draft, can discard it, and publishes under the same global operator-token policy used by capture, MIT, payment-order, batch, and reconciliation actions.
 5. MIT shows Primary and Backup and rejects the same instrument in both roles.
 6. Koza items can be selected and submitted only through the monthly batch workflow.
 7. Disabled webhooks return 404 and disabled SFTP makes no connection.

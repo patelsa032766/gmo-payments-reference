@@ -48,4 +48,20 @@ describe('PaymentMethodDetailsComponent', () => {
       fixture.destroy();
     });
   }
+
+  it('emits an empty PayPay payload rather than leaking card-form keys', async () => {
+    const fixture = TestBed.createComponent(PaymentMethodDetailsComponent);
+    const emitted: Record<string, unknown>[] = [];
+    fixture.componentInstance.detailsChange.subscribe(value => emitted.push(value));
+    fixture.componentRef.setInput('method', {
+      code: 'paypay', label: 'PayPay', description: 'PayPay approval', recurring: true,
+      displayOrder: 1, citExecutionMode: 'AUTH',
+    } satisfies PaymentMethodOption);
+    fixture.componentRef.setInput('amountJpy', 10_000);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(emitted.at(-1)).toEqual({});
+    fixture.destroy();
+  });
 });

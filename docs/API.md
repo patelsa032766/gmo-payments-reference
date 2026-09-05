@@ -83,13 +83,15 @@ POST   /api/v1/configuration/draft/publish
 DELETE /api/v1/configuration/draft
 ```
 
-The experience resource returns predefined customer/application scenarios and persists the selected application, due-today amount, checkout language, and `configurationTokenRequired`. Configuration write commands require `X-Operator-Token` when that saved flag is enabled. The flag does not weaken financial operator endpoints, which always require a token.
+The experience resource returns predefined customer/application scenarios and persists the selected application, due-today amount, checkout language, and `operatorTokenRequired`. When that saved flag is enabled, configuration changes, capture, MIT payments, payment-order changes, Koza batches, and manual SFTP reconciliation all require `X-Operator-Token`.
 
-The experience `PUT` may set `configurationTokenRequired` to `false` without a
-credential so a fresh local demonstration can opt out of configuration prompts.
-The Angular client persists that transition before publishing the associated
-draft. Treat the Configuration route as trusted local tooling when using this
-mode; production identity and authorization must replace it.
+The experience `PUT` may set `operatorTokenRequired` to `false` without a
+credential so a fresh local demonstration can opt out of operator prompts. The
+Angular client persists that transition before publishing the associated draft,
+so the rest of the save follows the newly disabled policy. This bypass applies
+to every operator mutation and is local-testing functionality only. Re-enabling
+it requires a valid environment-backed token; production identity and
+authorization must replace this shared-token model.
 
 A draft request contains the complete ordered method collection; each item includes `code`, `enabled`, `recurring`, `monthlyOnly`, `minimumAmountJpy`, `maximumAmountJpy`, `citExecutionMode`, and display order. `citExecutionMode` is merchant policy—not customer input—and is meaningful for Card and PayPay. Publishing is atomic: the previous release retires and the draft becomes the one published release.
 
