@@ -4,7 +4,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.Base64;
+import java.util.HexFormat;
 import java.util.Map;
 
 /**
@@ -27,8 +27,11 @@ final class GmoWebhookCsrf {
         try {
             Mac mac = Mac.getInstance(HMAC);
             mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC));
-            String encoded = Base64.getUrlEncoder().withoutPadding()
-                    .encodeToString(mac.doFinal(orderId.getBytes(StandardCharsets.UTF_8)));
+            // GMO accepts only [0-9A-Za-z-]. Lowercase hexadecimal therefore
+            // avoids the underscore produced by URL-safe Base64 while keeping
+            // a full 128 bits of the HMAC in the 32-character field.
+            String encoded = HexFormat.of()
+                    .formatHex(mac.doFinal(orderId.getBytes(StandardCharsets.UTF_8)));
             return encoded.substring(0, TOKEN_LENGTH);
         } catch (Exception exception) {
             throw new IllegalStateException("Unable to generate GMO webhook CSRF token", exception);

@@ -48,7 +48,7 @@ class GmoRequestFactoryTest {
         assertThat(firstMerchant.get("csrfToken")).isEqualTo(secondMerchant.get("csrfToken"));
         assertThat(String.valueOf(firstMerchant.get("csrfToken")))
                 .hasSize(32)
-                .matches("[A-Za-z0-9_-]+");
+                .matches("[0-9a-f]+");
     }
 
     @Test
