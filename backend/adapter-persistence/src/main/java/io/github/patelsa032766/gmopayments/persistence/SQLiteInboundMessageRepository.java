@@ -104,9 +104,17 @@ public class SQLiteInboundMessageRepository implements InboundMessageRepository 
                 LIMIT 1
                 """).param("accessId", blank(accessId) ? null : accessId)
                 .param("orderId", blank(orderId) ? null : orderId)
-                .query((rs, rowNum) -> new TransactionLink(rs.getLong("id"),
-                        rs.getString("transaction_id"), (Long) rs.getObject("application_id"),
-                        rs.getString("correlation_id"))).optional();
+                .query((rs, rowNum) -> {
+                    // SQLite may materialize an INTEGER as either Integer or Long
+                    // depending on its current magnitude and JDBC-driver path.
+                    // Convert through Number so webhook linking does not depend on
+                    // that implementation detail.
+                    Number applicationId = (Number) rs.getObject("application_id");
+                    return new TransactionLink(rs.getLong("id"),
+                            rs.getString("transaction_id"),
+                            applicationId == null ? null : applicationId.longValue(),
+                            rs.getString("correlation_id"));
+                }).optional();
     }
 
     private void applyToTransaction(TransactionLink link, InboundPaymentMessage message) {
@@ -175,14 +183,17 @@ public class SQLiteInboundMessageRepository implements InboundMessageRepository 
     private static String canonicalState(String providerStatus) {
         return switch (providerStatus.toUpperCase(Locale.ROOT)) {
             case "AUTH", "AUTHENTICATED", "AUTHORIZED" -> "AUTHORIZED";
-            case "CAPTURE", "CAPTURED", "SALES", "PAID", "PAYSUCCESS" -> "PAID";
-            case "REGISTER", "REGISTERED" -> "REGISTERED";
+            case "CAPTURE", "CAPTURED", "SALES", "PAID", "PAYSUCCESS",
+                    "CASH_PAID", "WALLET_PAID" -> "PAID";
+            case "REGISTER", "REGISTERED", "WALLET_ACCEPTED" -> "REGISTERED";
             case "REQSUCCESS", "REQUEST_ACCEPTED" -> "SCHEDULED";
             case "SEND", "PROCESSING" -> "PROCESSING";
             case "PARTIAL_REFUND", "PARTIALLY_REFUNDED" -> "PARTIALLY_REFUNDED";
-            case "REFUND", "REFUNDED" -> "REFUNDED";
+            case "REFUND", "REFUNDED", "REFUND_SUCCEEDED" -> "REFUNDED";
             case "CHARGEBACK", "CHARGED_BACK" -> "CHARGED_BACK";
-            case "PAYFAIL", "FAILED", "FAIL", "EXPIRED", "CANCEL", "CANCELLED" -> "FAILED";
+            case "CASH_RETURN", "CANCEL", "CANCELLED" -> "CANCELLED";
+            case "PAYFAIL", "FAILED", "FAIL", "EXPIRED", "WALLET_FAILED",
+                    "REFUND_FAILED" -> "FAILED";
             default -> providerStatus.toUpperCase(Locale.ROOT);
         };
     }

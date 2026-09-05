@@ -103,6 +103,12 @@ Automatic retry is restricted to authenticated, read-only inquiries. It uses bou
 
 Inbound webhooks are optional but, when enabled, are authenticated/validated, durably deduplicated, linked to the transaction, and acknowledged promptly. Business application can occur immediately after durable receipt or asynchronously depending on the GMO protocol contract.
 
+GMO notification schemas are product-specific. Cash webhooks link by provider
+`accessId` and use events such as `CASH_PAID`; they do not include an order ID or
+generic status. The persistence adapter resolves the stored order reference for
+CSRF validation, then applies the event to the same root transaction projection
+and appends immutable notification evidence.
+
 Browser returns are navigation signals, not conclusive financial evidence. If the result is missing or ambiguous, the UI displays a pending state while the backend performs inquiry.
 
 SFTP reconciliation remains available whether webhooks are on or off:

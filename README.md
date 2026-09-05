@@ -170,8 +170,12 @@ Public callbacks are:
 
 OpenAPI requests include a URL-safe, per-order `merchant.csrfToken` derived with
 `GMO_WEBHOOK_CSRF_SECRET`; GMO echoes it in the webhook and the application
-validates it in constant time. The OpenAPI endpoint also accepts
-`X-Webhook-Ingress-Token` when a trusted edge injects it. Legacy protocol
+validates it in constant time. Cash notifications such as convenience-store
+payments contain `accessId`, `event`, and `csrfToken`, but no `orderId`. The
+receiver therefore resolves the persisted provider order by `accessId` before
+validating the per-order token. `CASH_PAID` advances the existing transaction
+thread to `PAID`; it never creates a second transaction. The OpenAPI endpoint
+also accepts `X-Webhook-Ingress-Token` when a trusted edge injects it. Legacy protocol
 notifications do not carry the OpenAPI token and therefore require that edge
 header. Never put either secret in a URL. Browser-return endpoints use provider
 references and server-side inquiry/integrity validation instead of treating the

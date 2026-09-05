@@ -35,7 +35,7 @@ runtime database is ignored by Git.
 | PayPay recurring | Not a single operation: consent and the first charge are separate GMO orders. | **Accepted / handoff required.** `/wallet/authorizeAccount` returned `REQSUCCESS`. Example `TXN-PAYPAY-AD8238EE221D`. After a verified `REGISTER` callback, Java submits a distinct `/wallet/on-file/charge` order and can later capture an `AUTH`. | The already completed sandbox registration for `CUST-10044` was verified with read-only `/member/inquiry`; the registered acceptance code is not documented here. | The first charge now has its own `orderId`. A successful registration is retained even if that first charge fails, while checkout remains `FAILED` and attention-required. |
 | Real-time bank debit (`口座直結決済`) | The payment-specific flow is registration followed by immediate debit; it has no card-style sale selector. | Not applicable. | **Accepted / handoff required.** `BankDirectRegist.idPass` returned a real `BankDirectStart.idPass` form handoff. Example `TXN-BANKDIRECT-98FE90E4FE04`. On verified return Java runs account inquiry, Entry, then Exec. | This remains distinct from Koza Furikae in codes, UI, storage, endpoints, and lifecycle. |
 | Koza Furikae Select (`口座振替（セレクト）`) | Not applicable. The first premium is Furikomi, not an immediate Koza debit. | Not applicable. | **Accepted / handoff required.** `BankAccountEntry.idPass` returned a real `BankAccountStart.idPass` form handoff. Example `TXN-KOZAFURIKAE-11CD0794FFC8`. A successful return triggers verified mandate inquiry and first-premium Furikomi instructions. | Monthly-only. The browser return is a locator; Java verifies it server-to-server before provisioning the mandate. |
-| Kombini | **Instructions issued.** `/cash/charge` returned `REQSUCCESS` with Lawson receipt/confirmation data. Example `TXN-KOMBINI-4978CD8A1FCF`. | Not applicable. | Not applicable. | Kana is normalized to remove ASCII/full-width spaces because GMO rejects spaces in `payer.nameKana`. |
+| Kombini | **Completed asynchronously.** `/cash/charge` returned `REQSUCCESS` with Lawson receipt/confirmation data. After payment in the GMO portal, `/order/inquiry` returned `PAYSUCCESS`; the `CASH_PAID` notification advanced the same thread to `PAID`. Example `TXN-KOMBINI-4978CD8A1FCF`. | Not applicable. | Not applicable. | Kana is normalized to remove ASCII/full-width spaces because GMO rejects spaces in `payer.nameKana`. |
 | Pay-easy | **Instructions issued.** `/cash/charge` returned `REQSUCCESS`. Example `TXN-PAYEASY-5FF3BCAEAF80`. | Not applicable. | Not applicable. | Financial completion arrives later by webhook and/or reconciliation. |
 | Furikomi | **Instructions issued.** `/cash/charge` returned `TRADING` and a GMO Aozora virtual account. Example `TXN-FURIKOMI-D4B4A35FABAD`. | Not applicable. | Not applicable. | One-time only in checkout; the command boundary now rejects it for monthly applications even if a client bypasses the UI. |
 
@@ -52,9 +52,9 @@ runtime database is ignored by Git.
 ## Webhook and callback reachability
 
 The local Cloudflare ingress was checked at the exact public OpenAPI webhook
-path. A GET returned Spring's HTTP 405 with `Allow: POST`, proving the hostname,
-restricted tunnel rule, and local backend were connected without sending a
-fake provider event. GMO notifications must use:
+path. A valid, duplicate `CASH_PAID` delivery returned HTTP 200 and
+`duplicate:true`, proving the hostname, restricted tunnel rule, authentication,
+deduplication, and local backend were connected. GMO notifications must use:
 
 - `POST /webhooks/gmo/openapi`
 - `POST /webhooks/gmo/protocol`
@@ -82,6 +82,8 @@ URL and edge configuration.
    checks at command submission; the Angular list is not a security boundary.
 10. One-time checkout no longer claims that reusable-capable methods will be
     available for future monthly payments.
+11. Cash webhooks now authenticate and link by `accessId` when GMO omits
+    `orderId`, and their `event` value drives the canonical status projection.
 
 ## Re-running safely
 

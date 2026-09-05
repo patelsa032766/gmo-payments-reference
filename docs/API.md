@@ -187,6 +187,21 @@ Each originating OpenAPI request supplies a per-order `merchant.csrfToken`;
 GMO echoes it in the JSON body and the receiver verifies it. A trusted edge may
 alternatively inject `X-Webhook-Ingress-Token`.
 
+Cash notifications use GMO's product-specific event contract. For example:
+
+```json
+{
+  "accessId": "provider-access-reference",
+  "event": "CASH_PAID",
+  "csrfToken": "per-order-token"
+}
+```
+
+Because this payload omits `orderId`, the receiver resolves `accessId` to the
+persisted provider order before validating the CSRF token. When a generic
+`status` field is absent, `event` is the provider status. `CASH_PAID` maps to
+canonical `PAID`, while duplicate deliveries remain idempotent.
+
 Legacy protocol notification:
 
 ```http

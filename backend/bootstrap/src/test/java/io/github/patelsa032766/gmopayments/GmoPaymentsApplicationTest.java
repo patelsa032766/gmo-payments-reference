@@ -5,6 +5,7 @@ import io.github.patelsa032766.gmopayments.application.service.CheckoutPaymentSe
 import io.github.patelsa032766.gmopayments.application.service.CheckoutExperienceService;
 import io.github.patelsa032766.gmopayments.application.service.CapturePaymentService;
 import io.github.patelsa032766.gmopayments.application.service.PaymentOperationsQueryService;
+import io.github.patelsa032766.gmopayments.application.service.InboundMessageService;
 import io.github.patelsa032766.gmopayments.web.OperatorActionGuard;
 import io.github.patelsa032766.gmopayments.domain.PaymentMethodCode;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,8 @@ import java.util.Map;
 import java.util.UUID;
 
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:sqlite:target/application-test.db?journal_mode=WAL&busy_timeout=5000&foreign_keys=on"
+        "spring.datasource.url=jdbc:sqlite:target/application-test.db?journal_mode=WAL&busy_timeout=5000&foreign_keys=on",
+        "gmo.webhooks-enabled=true"
 })
 class GmoPaymentsApplicationTest {
     @Autowired
@@ -39,6 +41,9 @@ class GmoPaymentsApplicationTest {
 
     @Autowired
     private OperatorActionGuard operatorActions;
+
+    @Autowired
+    private InboundMessageService inboundMessages;
 
     @Test
     void contextLoadsWithMigratedSQLiteConfiguration() {
@@ -98,6 +103,25 @@ class GmoPaymentsApplicationTest {
                 Map.of("email", "customer@example.com")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("not available for recurring plans");
+    }
+
+    @Test
+    void cashPaidWebhookLinksByAccessIdAndAdvancesInstructionsToPaid() {
+        var instructions = checkoutPaymentService.submit("APP-20260829-022",
+                PaymentMethodCode.KOMBINI, "cash-webhook-" + UUID.randomUUID(),
+                Map.of("email", "customer@example.com", "nameKana", "テストタロウ"));
+
+        var received = inboundMessages.receive("OPENAPI", Map.of(
+                "accessId", "simulated-" + instructions.transactionId(),
+                "event", "CASH_PAID",
+                "csrfToken", "already-authenticated-by-controller"));
+
+        assertThat(received.linked()).isTrue();
+        assertThat(received.applied()).isTrue();
+        assertThat(operations.getTransactionThread(instructions.transactionId())
+                .transaction().canonicalState()).isEqualTo("PAID");
+        assertThat(operations.getTransactionThread(instructions.transactionId())
+                .events()).extracting("eventType").contains("PROVIDER_NOTIFICATION");
     }
 
     @Test

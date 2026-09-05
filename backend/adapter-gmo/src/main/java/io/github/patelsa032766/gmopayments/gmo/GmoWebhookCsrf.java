@@ -38,12 +38,18 @@ final class GmoWebhookCsrf {
         }
     }
 
-    static boolean matches(GmoProperties properties, Map<String, ?> payload) {
+    static boolean matches(GmoProperties properties, Map<String, ?> payload,
+                           String resolvedOrderId) {
         String orderId = text(payload.get("orderId"));
         Object orderReference = payload.get("orderReference");
         if (orderId == null && orderReference instanceof Map<?, ?> nested) {
             orderId = text(nested.get("orderId"));
         }
+        // Cash and wallet webhooks contain accessId, event, and csrfToken but
+        // omit orderId. The caller resolves the persisted accessId/orderId
+        // pair before reaching this method. An orderId supplied by GMO remains
+        // authoritative and is never replaced by the fallback.
+        if (orderId == null) orderId = text(resolvedOrderId);
         String presented = text(payload.get("csrfToken"));
         String expected = create(properties, orderId);
         if (expected == null || presented == null) return false;

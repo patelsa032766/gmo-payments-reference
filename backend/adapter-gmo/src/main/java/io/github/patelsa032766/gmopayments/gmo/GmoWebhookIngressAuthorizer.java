@@ -1,6 +1,7 @@
 package io.github.patelsa032766.gmopayments.gmo;
 
 import io.github.patelsa032766.gmopayments.application.port.WebhookIngressAuthorizer;
+import io.github.patelsa032766.gmopayments.application.port.WebhookOrderReferenceLookup;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -11,9 +12,12 @@ import java.util.Map;
 @Component
 public final class GmoWebhookIngressAuthorizer implements WebhookIngressAuthorizer {
     private final GmoProperties properties;
+    private final WebhookOrderReferenceLookup orderReferences;
 
-    public GmoWebhookIngressAuthorizer(GmoProperties properties) {
+    public GmoWebhookIngressAuthorizer(GmoProperties properties,
+                                       WebhookOrderReferenceLookup orderReferences) {
         this.properties = properties;
+        this.orderReferences = orderReferences;
     }
 
     @Override
@@ -23,8 +27,12 @@ public final class GmoWebhookIngressAuthorizer implements WebhookIngressAuthoriz
 
     @Override
     public boolean authorizedOpenApi(String presentedToken, Map<String, ?> payload) {
-        return enabled() && (authorizedEdgeToken(presentedToken)
-                || GmoWebhookCsrf.matches(properties, payload));
+        if (!enabled()) return false;
+        if (authorizedEdgeToken(presentedToken)) return true;
+        String accessId = text(payload.get("accessId"));
+        String resolvedOrderId = accessId == null ? null
+                : orderReferences.findProviderOrderId(accessId).orElse(null);
+        return GmoWebhookCsrf.matches(properties, payload, resolvedOrderId);
     }
 
     @Override
@@ -38,5 +46,11 @@ public final class GmoWebhookIngressAuthorizer implements WebhookIngressAuthoriz
                 || presentedToken == null || presentedToken.isBlank()) return false;
         return MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8),
                 presentedToken.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String text(Object value) {
+        if (value == null) return null;
+        String text = String.valueOf(value).trim();
+        return text.isEmpty() ? null : text;
     }
 }

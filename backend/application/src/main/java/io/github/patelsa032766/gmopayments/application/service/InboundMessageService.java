@@ -28,6 +28,11 @@ public final class InboundMessageService {
         String orderId = firstText(rawPayload, "OrderID", "orderId", "OrderId");
         String accessId = firstText(rawPayload, "TranID", "AccessID", "accessId", "transactionId");
         String status = firstText(rawPayload, "Status", "status", "resultStatus");
+        // GMO's OpenAPI cash and wallet webhooks identify their outcome in
+        // `event` rather than `status` (for example CASH_PAID). Preserve that
+        // provider vocabulary and let the persistence projection normalize it
+        // into the application's canonical lifecycle state.
+        if (status == null) status = firstText(rawPayload, "event", "Event");
 
         Object nestedReference = rawPayload.get("orderReference");
         if (nestedReference instanceof Map<?, ?> nested) {
