@@ -41,6 +41,13 @@ h1 { margin: 0 0 5px; font-size: 1.55rem; letter-spacing: -.03em; } h2 { margin:
 pre { max-width: 100%; margin: 0; padding: 13px; overflow: auto; border-radius: 7px; background: #292b38; color: #f1f3ff; font: .7rem/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 pre.response { background: #173a35; }
 .event-state { margin: -3px 0 12px; color: var(--muted); font-size: .7rem; }
+.call-sequence { margin: 0 0 14px; padding: 11px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.call-sequence-heading { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; color: var(--muted); font-size: .64rem; }
+.call-sequence-steps { display: flex; flex-wrap: wrap; gap: 6px; }
+.call-sequence-steps button { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 6px 8px; border: 1px solid #d8ddeb; border-radius: 6px; background: #fafbfe; color: var(--muted); font-size: .64rem; overflow-wrap: anywhere; }
+.call-sequence-steps button > span { display: inline-grid; place-items: center; width: 17px; height: 17px; flex: 0 0 17px; border-radius: 50%; background: #e9ebf4; color: var(--ink); font-size: .58rem; }
+.call-sequence-steps button.active { border-color: var(--violet); background: var(--violet-pale); color: var(--violet-dark); }
+.call-sequence-steps button.active > span { background: var(--violet); color: white; }
 .exchange-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .exchange-meta span { padding: 3px 7px; border-radius: 999px; background: var(--violet-pale); color: var(--violet-dark); font-size: .61rem; }
 .setup-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; padding-top: 20px; }

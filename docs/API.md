@@ -102,7 +102,7 @@ GET /api/v1/operations/transactions
 GET /api/v1/operations/transactions/{transactionId}
 ```
 
-The list returns current projections. The detail response returns the root transaction, ordered events, and sanitized provider exchanges. Every later refund, chargeback, webhook, inquiry, retry, browser return, and SFTP match is appended to the same root thread instead of appearing as an unrelated payment.
+The list returns current projections. The detail response returns the root transaction, ordered events, and sanitized provider exchanges. One lifecycle event may own several ordered exchanges—for example, real-time Bank Direct performs `SearchBankDirect`, amount-bearing `EntryTranBankDirect`, and `ExecTranBankDirect`. The operator UI exposes each call rather than collapsing the event to its first exchange. Every later refund, chargeback, webhook, inquiry, retry, browser return, and SFTP match is appended to the same root thread instead of appearing as an unrelated payment.
 
 ### Capture an authorization
 

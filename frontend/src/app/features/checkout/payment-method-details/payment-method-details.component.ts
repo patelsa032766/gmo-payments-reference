@@ -120,7 +120,7 @@ export class PaymentMethodDetailsComponent {
     const fields: Record<string, readonly string[]> = {
       card: ['cardNumber', 'expiry', 'securityCode', 'holderName'],
       paypay: [],
-      bankDirect: ['bankCode', 'accountType', 'accountNumber', 'accountNameKana'],
+      bankDirect: ['bankCode', 'accountNameKana'],
       kozaFurikae: ['bankCode', 'branchCode', 'accountType', 'accountNumber', 'accountNameKana'],
       kombini: ['konbiniCode', 'nameKana', 'email', 'phone', 'deliveryChannel'],
       payeasy: ['nameKana', 'email', 'phone', 'deliveryChannel'],

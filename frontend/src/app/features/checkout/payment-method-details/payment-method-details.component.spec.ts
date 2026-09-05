@@ -81,6 +81,9 @@ describe('PaymentMethodDetailsComponent', () => {
     const nameInput = fixture.nativeElement.querySelector('input[name="rtName"]') as HTMLInputElement;
     expect(nameInput.value).toBe('アイコ　タナカ');
     expect(emitted.at(-1)?.['accountNameKana']).toBe('アイコ　タナカ');
+    expect(fixture.nativeElement.querySelector('input[name="rtNumber"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('select[name="rtType"]')).toBeNull();
+    expect(emitted.at(-1)).toEqual({ bankCode: '0001', accountNameKana: 'アイコ　タナカ' });
     fixture.destroy();
   });
 });

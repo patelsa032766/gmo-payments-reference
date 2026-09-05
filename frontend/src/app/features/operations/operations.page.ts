@@ -13,6 +13,7 @@ export class OperationsPage implements OnInit {
   protected readonly rows = signal<TransactionSummary[]>([]);
   protected readonly thread = signal<TransactionThread | null>(null);
   protected readonly selectedEvent = signal<TimelineEvent | null>(null);
+  protected readonly selectedExchange = signal<ProviderExchange | null>(null);
   protected readonly loading = signal(true);
   protected readonly capturing = signal(false);
   protected readonly actionMessage = signal<string|null>(null);
@@ -42,11 +43,34 @@ export class OperationsPage implements OnInit {
   }
   protected switchSection(value: 'transactions'|'webhooks'|'sftp'): void { this.section.set(value); }
   protected selectTransaction(row: TransactionSummary): void {
-    this.api.thread(row.transactionId).subscribe(thread => { this.thread.set(thread); this.selectedEvent.set(thread.events.at(-1) ?? null); });
+    this.api.thread(row.transactionId).subscribe(thread => {
+      this.thread.set(thread);
+      const latestEvent = thread.events.at(-1) ?? null;
+      this.selectedEvent.set(latestEvent);
+      this.selectDefaultExchange(latestEvent);
+    });
   }
-  protected selectEvent(event: TimelineEvent): void { this.selectedEvent.set(event); }
+  protected selectEvent(event: TimelineEvent): void {
+    this.selectedEvent.set(event);
+    this.selectDefaultExchange(event);
+  }
+  protected eventExchanges(): ProviderExchange[] {
+    const eventId = this.selectedEvent()?.eventId;
+    return eventId ? this.thread()?.exchanges.filter(exchange => exchange.eventId === eventId) ?? [] : [];
+  }
+  protected selectExchange(exchange: ProviderExchange): void { this.selectedExchange.set(exchange); }
   protected exchange(): ProviderExchange | null {
-    const event = this.selectedEvent(); return this.thread()?.exchanges.find(exchange => exchange.eventId === event?.eventId) ?? null;
+    return this.selectedExchange();
+  }
+  protected exchangeAmountJpy(): number | null {
+    for (const exchange of this.eventExchanges()) {
+      const rawAmount = exchange.requestBody['Amount'] ?? exchange.requestBody['amount'];
+      if (rawAmount !== undefined && rawAmount !== null && String(rawAmount).trim() !== '') {
+        const amount = Number(rawAmount);
+        if (Number.isFinite(amount)) return amount;
+      }
+    }
+    return null;
   }
   protected canCapture(thread:TransactionThread|null=this.thread()):boolean{
     return !!thread && thread.transaction.canonicalState==='AUTHORIZED'
@@ -75,6 +99,19 @@ export class OperationsPage implements OnInit {
   }
   private refreshSelected(transactionId:string):void{
     this.api.transactions().subscribe(rows=>{this.rows.set(rows);const row=rows.find(item=>item.transactionId===transactionId);if(row)this.selectTransaction(row);});
+  }
+  /**
+   * A lifecycle event may contain several provider calls. Select the final call
+   * as the outcome by default while retaining the ordered call sequence so an
+   * operator can inspect registration inquiry, amount-bearing entry, and
+   * execution independently.
+   */
+  private selectDefaultExchange(event: TimelineEvent | null): void {
+    const eventId = event?.eventId;
+    const exchanges = eventId
+      ? this.thread()?.exchanges.filter(exchange => exchange.eventId === eventId) ?? []
+      : [];
+    this.selectedExchange.set(exchanges.at(-1) ?? null);
   }
   protected reload(): void {
     this.loading.set(true); this.failed.set(false);
