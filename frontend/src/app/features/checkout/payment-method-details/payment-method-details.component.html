@@ -23,7 +23,7 @@
         <label class="field"><span>Bank</span><select name="rtBank" [(ngModel)]="details['bankCode']" (ngModelChange)="changed()"><option value="0001">Mizuho Bank</option><option value="0005">Mitsubishi UFJ Bank</option><option value="0009">Sumitomo Mitsui Banking Corporation</option></select></label>
         <label class="field"><span>Account type</span><select name="rtType" [(ngModel)]="details['accountType']" (ngModelChange)="changed()"><option value="1">Ordinary</option><option value="2">Current</option></select></label>
         <label class="field"><span>Account number</span><input name="rtNumber" [(ngModel)]="details['accountNumber']" (ngModelChange)="changed()" inputmode="numeric" autocomplete="off" placeholder="1234567" /></label>
-        <label class="field"><span>Account holder name (Kana)</span><input name="rtName" [(ngModel)]="details['accountNameKana']" (ngModelChange)="changed()" autocomplete="off" placeholder="タナカ アイコ" /></label>
+        <label class="field"><span>Account holder name (Kana — given, family)</span><input name="rtName" [(ngModel)]="details['accountNameKana']" (ngModelChange)="changed()" autocomplete="off" lang="ja" placeholder="アイコ　タナカ" /></label>
       </div>
       <div class="method-route"><span class="route-step">1</span><p>Complete bank registration. On return, today’s payment is debited immediately.</p></div>
     }

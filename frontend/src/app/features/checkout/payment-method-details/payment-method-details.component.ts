@@ -42,6 +42,19 @@ const PRESENTATION: Record<string, MethodPresentation> = {
 };
 
 /**
+ * Full-width Katakana defaults ported from the working Flask checkout.
+ *
+ * The browser-to-Spring API remains ordinary UTF-8 JSON. Windows-31J form
+ * encoding belongs at Spring's GMO idPass adapter, where it can be applied
+ * consistently without depending on a browser's document encoding.
+ */
+const BANK_DIRECT_ACCOUNT_HOLDER_NAMES: Readonly<Record<string, string>> = {
+  'CUST-10042': 'アイコ　タナカ',
+  'CUST-10043': 'ハルト　サトウ',
+  'CUST-10044': 'ユイ　ナカムラ',
+};
+
+/**
  * Provider-specific customer details for every catalog method, including methods
  * currently hidden by eligibility. Keeping this exhaustive means a configuration
  * enablement change cannot expose an empty accordion.
@@ -56,6 +69,7 @@ const PRESENTATION: Record<string, MethodPresentation> = {
 export class PaymentMethodDetailsComponent {
   readonly method = input.required<PaymentMethodOption>();
   readonly amountJpy = input.required<number>();
+  readonly customerCode = input('');
   readonly detailsChange = output<Record<string, unknown>>();
 
   protected readonly deliveryOptions = ['EMAIL', 'LINE', 'SMS'] as const;
@@ -77,7 +91,11 @@ export class PaymentMethodDetailsComponent {
     // Emit defaults each time Angular creates a newly selected accordion body;
     // a customer should not have to touch an already-correct select value.
     effect(() => {
-      this.method();
+      const method = this.method();
+      const customerCode = this.customerCode();
+      if (method.code === 'bankDirect' && !String(this.details['accountNameKana'] ?? '').trim()) {
+        this.details['accountNameKana'] = BANK_DIRECT_ACCOUNT_HOLDER_NAMES[customerCode] ?? '';
+      }
       queueMicrotask(() => this.changed());
     });
   }

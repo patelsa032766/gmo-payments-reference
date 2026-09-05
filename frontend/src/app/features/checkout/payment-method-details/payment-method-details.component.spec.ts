@@ -64,4 +64,23 @@ describe('PaymentMethodDetailsComponent', () => {
     expect(emitted.at(-1)).toEqual({});
     fixture.destroy();
   });
+
+  it('prefills the provider-compatible Kana name for a known bank-direct customer', async () => {
+    const fixture = TestBed.createComponent(PaymentMethodDetailsComponent);
+    const emitted: Record<string, unknown>[] = [];
+    fixture.componentInstance.detailsChange.subscribe(value => emitted.push(value));
+    fixture.componentRef.setInput('method', {
+      code: 'bankDirect', label: 'Bank Direct', description: 'Bank registration', recurring: true,
+      displayOrder: 1, citExecutionMode: 'AUTH',
+    } satisfies PaymentMethodOption);
+    fixture.componentRef.setInput('amountJpy', 10_000);
+    fixture.componentRef.setInput('customerCode', 'CUST-10042');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const nameInput = fixture.nativeElement.querySelector('input[name="rtName"]') as HTMLInputElement;
+    expect(nameInput.value).toBe('アイコ　タナカ');
+    expect(emitted.at(-1)?.['accountNameKana']).toBe('アイコ　タナカ');
+    fixture.destroy();
+  });
 });

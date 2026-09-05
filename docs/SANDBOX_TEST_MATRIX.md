@@ -84,6 +84,10 @@ URL and edge configuration.
     available for future monthly payments.
 11. Cash webhooks now authenticate and link by `accessId` when GMO omits
     `orderId`, and their `event` value drives the canonical status projection.
+12. Bank Direct account names use the Flask-compatible natural
+    `given-name family-name` input, split into GMO's first/last fields and
+    percent-encoded as Windows-31J. Windows-31J browser returns are decoded at
+    the idPass boundary instead of being rejected by Tomcat's UTF-8 form parser.
 
 ## Re-running safely
 

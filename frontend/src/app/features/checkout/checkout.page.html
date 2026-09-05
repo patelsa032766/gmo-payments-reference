@@ -42,7 +42,8 @@
                 </button>
 
                 @if (selectedCode() === method.code) {
-                  <app-payment-method-details [method]="method" [amountJpy]="amountJpy()" (detailsChange)="updateDetails($event)" />
+                  <app-payment-method-details [method]="method" [amountJpy]="amountJpy()"
+                    [customerCode]="scenario()?.customerCode ?? ''" (detailsChange)="updateDetails($event)" />
                 }
               </article>
             } @empty {

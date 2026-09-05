@@ -221,6 +221,11 @@ Browser returns are separate:
 
 They locate an existing reservation and invoke authoritative inquiry/continuation. The browser payload alone never marks a payment paid.
 
+The two idPass form returns use GMO's Windows-31J percent encoding. They are
+decoded from a size-bounded raw request body rather than through the servlet
+container's UTF-8 form binding. Angular continues to submit UTF-8 JSON; encoding
+conversion occurs only at the GMO protocol boundary.
+
 ## SFTP import
 
 ```http

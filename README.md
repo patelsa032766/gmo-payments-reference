@@ -181,6 +181,12 @@ header. Never put either secret in a URL. Browser-return endpoints use provider
 references and server-side inquiry/integrity validation instead of treating the
 browser as financial authority.
 
+GMO idPass is a legacy Windows-31J protocol. The Angular checkout sends normal
+UTF-8 JSON to Spring; the GMO adapter percent-encodes the bank-account Kana
+fields as Windows-31J. Bank Direct and Koza browser returns are read as raw form
+bodies and decoded with Windows-31J inside the web adapter. Do not configure the
+whole Spring application as Shift_JIS—doing so would corrupt the modern JSON API.
+
 For local tunnels, publish only the callback paths instead of the whole
 application. A Cloudflare ingress can use the following shape; replace the
 hostname, tunnel ID, credentials path, and origin for your environment:

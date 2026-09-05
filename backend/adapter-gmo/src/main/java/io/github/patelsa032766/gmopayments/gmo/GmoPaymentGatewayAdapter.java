@@ -642,10 +642,9 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
 
     private PaymentGatewayResult bankDirectRegistration(PaymentExecutionContext context,
                                                          Map<String, Object> details) {
-        String accountName = required(details, "accountNameKana").trim();
-        String[] names = accountName.split("[ 　]+", 2);
+        var names = GmoBankAccountName.split(required(details, "accountNameKana"));
         var payload = requests.bankDirectRegistration(facts(context), required(details, "bankCode"),
-                names[0], names.length == 2 ? names[1] : names[0]);
+                names.lastName(), names.firstName());
         var result = idPass.post("BankDirectRegist.idPass", payload, true);
         return registrationResult(context, payload, result, "BankDirectRegist",
                 "Real-time bank debit registration started");
