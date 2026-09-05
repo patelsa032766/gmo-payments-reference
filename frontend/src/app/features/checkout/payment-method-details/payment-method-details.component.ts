@@ -12,7 +12,7 @@ interface MethodPresentation {
 
 const PRESENTATION: Record<string, MethodPresentation> = {
   card: {
-    title: 'Secure card details', description: 'Enter your card details to authorize the first payment.',
+    title: 'Secure card details', description: 'Enter your card details to process the first payment.',
     badge: 'Secure payment', note: 'Your card details are handled securely by GMO and are not stored by us.',
   },
   paypay: {

@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import java.util.UUID;
@@ -76,15 +77,27 @@ class GmoPaymentsApplicationTest {
     void simulatedCheckoutPersistsOneThreadAndReplaysTheIdempotentResult() {
         String idempotencyKey = "test-" + UUID.randomUUID();
 
-        var first = checkoutPaymentService.submit("APP-20260821-001", PaymentMethodCode.FURIKOMI,
+        // Furikomi is intentionally a one-time-only checkout method. Use the
+        // one-time fixture so this integration test also proves the command
+        // boundary enforces the same plan rules as the options endpoint.
+        var first = checkoutPaymentService.submit("APP-20260829-022", PaymentMethodCode.FURIKOMI,
                 idempotencyKey, Map.of("email", "customer@example.com"));
-        var replay = checkoutPaymentService.submit("APP-20260821-001", PaymentMethodCode.FURIKOMI,
+        var replay = checkoutPaymentService.submit("APP-20260829-022", PaymentMethodCode.FURIKOMI,
                 idempotencyKey, Map.of("email", "customer@example.com"));
 
         assertThat(first.state()).isEqualTo("INSTRUCTIONS_ISSUED");
         assertThat(first.instructions()).containsKeys("bank", "accountNumber", "transferReference");
         assertThat(replay.transactionId()).isEqualTo(first.transactionId());
         assertThat(replay.idempotentReplay()).isTrue();
+    }
+
+    @Test
+    void commandBoundaryRejectsOneTimeMethodForMonthlyApplication() {
+        assertThatThrownBy(() -> checkoutPaymentService.submit("APP-20260821-001",
+                PaymentMethodCode.FURIKOMI, "ineligible-" + UUID.randomUUID(),
+                Map.of("email", "customer@example.com")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("not available for recurring plans");
     }
 
     @Test

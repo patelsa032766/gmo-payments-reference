@@ -127,7 +127,11 @@ public class GmoRequestFactory {
                                            String konbiniCode) {
         var payer = new LinkedHashMap<String, Object>();
         payer.put("name", facts.customerName());
-        if (!blank(nameKana)) payer.put("nameKana", nameKana);
+        // GMO's OpenAPI cash contract accepts full-width Kana but rejects
+        // ordinary and Japanese spaces in payer.nameKana. The UI presents a
+        // natural full-name field, so normalize separators at the provider
+        // boundary instead of making customers discover the wire constraint.
+        if (!blank(nameKana)) payer.put("nameKana", normalizeKana(nameKana));
         if (!blank(email)) payer.put("email", email);
         if (!blank(phone)) payer.put("phones", java.util.List.of(Map.of("number", digits(phone))));
 
@@ -281,6 +285,7 @@ public class GmoRequestFactory {
     }
 
     private static String digits(String value) { return value.replaceAll("[^0-9]", ""); }
+    private static String normalizeKana(String value) { return value.replaceAll("[\\s　]+", ""); }
     private static boolean blank(String value) { return value == null || value.isBlank(); }
 
     public record CheckoutFacts(String applicationNumber, String providerOrderId,

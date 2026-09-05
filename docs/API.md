@@ -25,7 +25,7 @@ GET /api/v1/checkout/options?channel=PA&amountJpy=10000&monthly=true&ekycVerifie
 | `ekycVerified` | Boolean | Real-time bank-debit eligibility ceiling |
 | `language` | `en`, `ja` | Published customer label and description |
 
-The backend returns only eligible methods, already ordered. Checkout must not duplicate policy logic.
+The backend returns only eligible methods, already ordered. Checkout must not duplicate policy logic. The payment command repeats the enabled, amount, plan, channel, and eKYC checks against the same published release, so directly constructing a request cannot bypass the options policy.
 
 ## Browser payment configuration
 
@@ -61,8 +61,8 @@ GET /api/v1/checkout/payments/{transactionId}
 
 | Method | Important details | Result model |
 | --- | --- | --- |
-| Card | `token`, `holderName` | Published CIT policy chooses `AUTH` or immediate `CAPTURE`; successful charge is then stored |
-| PayPay | No sensitive account input | Recurring consent redirect, inquiry, then first charge using the published CIT policy |
+| Card | `token`, `holderName` | Published CIT policy chooses `AUTH` or immediate `CAPTURE`; a successful monthly-plan charge is stored, while a one-time plan stops after the charge |
+| PayPay | No sensitive account input | One-time plans call `/wallet/charge`; monthly plans run recurring consent, inquiry, then a separately identified first on-file charge |
 | Real-time bank debit | Bank/account registration fields required by enabled contract | Registration form post, inquiry, immediate debit |
 | Koza Furikae | Registration bank fields | Registration form post, inquiry, then first-premium Furikomi instructions |
 | Kombini | Customer/contact and store code | Instructions issued |
@@ -201,6 +201,7 @@ Browser returns are separate:
 
 - `POST /webhooks/gmo/protocol/return/bank-direct`
 - `POST /webhooks/gmo/protocol/return/koza-furikae`
+- `GET /api/v1/gmo/returns/paypay?p={provider-envelope}`
 - `GET /api/v1/gmo/returns/paypay-registration?p={provider-envelope}`
 
 They locate an existing reservation and invoke authoritative inquiry/continuation. The browser payload alone never marks a payment paid.

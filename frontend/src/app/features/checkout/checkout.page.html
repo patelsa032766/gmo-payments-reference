@@ -34,7 +34,9 @@
                   <span class="method-main">
                     <span class="method-title">{{ method.label }}</span>
                     <span class="method-description">{{ method.description }}</span>
-                    @if (method.recurring) { <span class="method-badge">Available for future monthly payments</span> }
+                    @if (method.recurring && scenario()?.paymentPlan === 'MONTHLY') {
+                      <span class="method-badge">Available for future monthly payments</span>
+                    }
                   </span>
                   <span class="chevron" [class.is-expanded]="selectedCode() === method.code" aria-hidden="true">›</span>
                 </button>

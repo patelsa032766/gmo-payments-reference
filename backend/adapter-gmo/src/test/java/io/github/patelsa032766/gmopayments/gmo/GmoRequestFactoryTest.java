@@ -114,4 +114,13 @@ class GmoRequestFactoryTest {
                 .containsEntry("TargetDate", "20260928")
                 .containsEntry("CheckMode", "NOCHECK_ACCOUNT");
     }
+
+    @Test
+    void cashChargeRemovesNameSeparatorsRejectedByGmo() {
+        var payload = factory.cashCharge(facts, "KONBINI", "タナカ　アイコ",
+                "aiko@example.com", "090-1234-5678", "LAWSON");
+
+        assertThat(payload.toString()).contains("nameKana=タナカアイコ")
+                .doesNotContain("タナカ　アイコ");
+    }
 }

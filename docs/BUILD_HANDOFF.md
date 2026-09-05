@@ -2,6 +2,12 @@
 
 Status: functional reference build implemented from approved mock baseline `20260901-28`.
 
+Controlled live validation and merchant-specific limitations are recorded in
+`SANDBOX_TEST_MATRIX.md`. In particular, the tested merchant sandbox accepts
+PayPay `AUTH` followed by `/order/capture`, but rejected direct PayPay
+`CAPTURE`; the application preserves that real provider result rather than
+substituting a simulated success.
+
 ## Delivered
 
 - Java 21 / Spring Boot 4.1.1 multi-module Maven build with checked-in wrapper.

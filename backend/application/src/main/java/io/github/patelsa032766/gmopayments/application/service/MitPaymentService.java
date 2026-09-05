@@ -30,7 +30,7 @@ public final class MitPaymentService {
         }
         Map<String,Object> normalized=Map.of("authorizationMode",mode.name());
         try{return repository.recordSuccess(reservation.context(),gateway.executeMit(reservation.context(),reservation.instrumentFacts(),normalized));}
-        catch(PaymentGatewayException exception){return repository.recordFailure(reservation.context(),exception.outcomeUnknown()?"UNKNOWN":"FAILED",exception.getMessage(),true);}
+        catch(PaymentGatewayException exception){return repository.recordFailure(reservation.context(),exception.outcomeUnknown()?"UNKNOWN":"FAILED",exception.getMessage(),true,exception.evidence());}
         catch(RuntimeException exception){return repository.recordFailure(reservation.context(),"UNKNOWN","Provider outcome is unknown; inquiry is required",true);}
     }
     private static String sha(String value){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));}catch(Exception e){throw new IllegalStateException(e);}}

@@ -5,9 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.patelsa032766.gmopayments.application.port.MitCommandRepository;
 import io.github.patelsa032766.gmopayments.domain.MitExecutionReservation;
 import io.github.patelsa032766.gmopayments.domain.PaymentExecutionContext;
+import io.github.patelsa032766.gmopayments.domain.PaymentContinuationResult;
 import io.github.patelsa032766.gmopayments.domain.PaymentGatewayResult;
 import io.github.patelsa032766.gmopayments.domain.PaymentMethodCode;
 import io.github.patelsa032766.gmopayments.domain.PaymentNextAction;
+import io.github.patelsa032766.gmopayments.domain.ProviderCallEvidence;
 import io.github.patelsa032766.gmopayments.domain.PaymentExecutionMode;
 import io.github.patelsa032766.gmopayments.domain.PaymentSubmissionResult;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -106,7 +108,9 @@ public class SQLiteMitCommandRepository implements MitCommandRepository {
     }
 
     @Override
-    public PaymentSubmissionResult recordSuccess(PaymentExecutionContext context, PaymentGatewayResult result) {
+    public PaymentSubmissionResult recordSuccess(PaymentExecutionContext context,
+                                                 PaymentContinuationResult execution) {
+        PaymentGatewayResult result = execution.outcome();
         return lockRetry.execute("complete MIT payment", () -> transactions.execute(status -> {
             long transactionPk = transactionPk(context.transactionId());
             String now = Instant.now().toString();
@@ -122,7 +126,13 @@ public class SQLiteMitCommandRepository implements MitCommandRepository {
                     .param("id", transactionPk).update();
             long eventPk = appendEvent(transactionPk, result.eventType(), "GMO_API", result.summary(),
                     result.canonicalState(), context.correlationId(), result.instructions());
-            appendExchange(transactionPk, eventPk, context, result);
+            if (execution.exchanges().isEmpty()) {
+                appendExchange(transactionPk, eventPk, context, result);
+            } else {
+                for (ProviderCallEvidence exchange : execution.exchanges()) {
+                    appendExchange(transactionPk, eventPk, context, exchange);
+                }
+            }
             jdbc.sql("""
                     UPDATE idempotency_record SET status='COMPLETED', response_json=:response, updated_at=:updatedAt
                     WHERE transaction_id=:transactionPk
@@ -137,7 +147,8 @@ public class SQLiteMitCommandRepository implements MitCommandRepository {
 
     @Override
     public PaymentSubmissionResult recordFailure(PaymentExecutionContext context, String state,
-                                                 String summary, boolean attention) {
+                                                 String summary, boolean attention,
+                                                 ProviderCallEvidence evidence) {
         return lockRetry.execute("record MIT failure", () -> transactions.execute(status -> {
             long transactionPk = transactionPk(context.transactionId());
             jdbc.sql("""
@@ -146,8 +157,9 @@ public class SQLiteMitCommandRepository implements MitCommandRepository {
                         updated_at=:updatedAt, version=version+1 WHERE id=:id
                     """).param("state", state).param("attention", attention)
                     .param("updatedAt", Instant.now().toString()).param("id", transactionPk).update();
-            appendEvent(transactionPk, "PROVIDER_FAILURE", "GMO_API", summary, state,
+            long eventPk = appendEvent(transactionPk, "PROVIDER_FAILURE", "GMO_API", summary, state,
                     context.correlationId(), Map.of());
+            if (evidence != null) appendExchange(transactionPk, eventPk, context, evidence);
             return new PaymentSubmissionResult(context.transactionId(), context.applicationNumber(), context.method(),
                     state, state, attention, PaymentNextAction.none(), Map.of(), false);
         }));
@@ -226,6 +238,24 @@ public class SQLiteMitCommandRepository implements MitCommandRepository {
                 .param("httpStatus", result.httpStatus()).param("durationMs", result.durationMs())
                 .param("requestBody", json(result.sanitizedRequest()))
                 .param("responseBody", json(result.sanitizedResponse())).param("outcome", result.canonicalState())
+                .param("correlationId", context.correlationId()).update();
+    }
+
+    /** Persist the sanitized request/response that explains a rejected MIT call. */
+    private void appendExchange(long transactionPk, long eventPk, PaymentExecutionContext context,
+                                ProviderCallEvidence evidence) {
+        jdbc.sql("""
+                INSERT INTO provider_exchange
+                    (exchange_id,transaction_id,event_id,direction,transport,operation,endpoint,http_status,
+                     duration_ms,request_body_json,response_body_json,outcome,correlation_id)
+                VALUES (:exchangeId,:transactionPk,:eventPk,'PAIRED',:transport,:operation,:endpoint,:httpStatus,
+                        :durationMs,:requestBody,:responseBody,:outcome,:correlationId)
+                """).param("exchangeId", "EXC-" + compactId()).param("transactionPk", transactionPk)
+                .param("eventPk", eventPk).param("transport", evidence.transport())
+                .param("operation", evidence.operation()).param("endpoint", evidence.endpoint())
+                .param("httpStatus", evidence.httpStatus()).param("durationMs", evidence.durationMs())
+                .param("requestBody", json(evidence.sanitizedRequest()))
+                .param("responseBody", json(evidence.sanitizedResponse())).param("outcome", evidence.outcome())
                 .param("correlationId", context.correlationId()).update();
     }
 

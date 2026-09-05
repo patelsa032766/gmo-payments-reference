@@ -17,10 +17,12 @@ public interface PaymentGateway {
      * operator timeline from hiding either half of that business operation.</p>
      */
     PaymentContinuationResult executeCheckout(PaymentExecutionContext context, Map<String, Object> details);
-    PaymentGatewayResult executeMit(PaymentExecutionContext context, Map<String, Object> instrumentFacts,
-                                    Map<String, Object> commandDetails);
-    PaymentGatewayResult executeKozaDebit(PaymentExecutionContext context, Map<String,Object> instrumentFacts,
-                                          String targetDate, String remarks);
+    PaymentContinuationResult executeMit(PaymentExecutionContext context,
+                                         Map<String, Object> instrumentFacts,
+                                         Map<String, Object> commandDetails);
+    PaymentContinuationResult executeKozaDebit(PaymentExecutionContext context,
+                                               Map<String,Object> instrumentFacts,
+                                               String targetDate, String remarks);
 
     /** Converts an existing Card or PayPay authorization into a completed sale. */
     PaymentGatewayResult capture(PaymentExecutionContext context, String providerAccessId,

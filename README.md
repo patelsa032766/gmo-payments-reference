@@ -165,6 +165,7 @@ Public callbacks are:
 - `POST /webhooks/gmo/protocol`
 - `POST /webhooks/gmo/protocol/return/bank-direct`
 - `POST /webhooks/gmo/protocol/return/koza-furikae`
+- `GET /api/v1/gmo/returns/paypay`
 - `GET /api/v1/gmo/returns/paypay-registration`
 
 OpenAPI requests include a URL-safe, per-order `merchant.csrfToken` derived with
@@ -236,7 +237,7 @@ cd backend && ./mvnw test
 cd ../frontend && npm test -- --watch=false && npm run build
 ```
 
-Live sandbox calls are intentionally excluded from automated tests. Validate them product by product with synthetic data and inspect `/operations` after each call.
+Live sandbox calls are intentionally excluded from automated tests. Validate them product by product with synthetic data and inspect `/operations` after each call. The controlled merchant-sandbox results from 5 September 2026—including provider-accepted, handoff-pending, and provider-rejected cases—are recorded in `docs/SANDBOX_TEST_MATRIX.md`.
 
 ## Repository layout
 
@@ -273,6 +274,7 @@ Before publishing, verify that no Shop/Site credentials, tokens, tunnel credenti
 - `docs/API.md` — REST commands, headers, callbacks, and examples
 - `docs/DATABASE.md` — schema and SQLite interaction/locking rules
 - `docs/BUILD_HANDOFF.md` — implemented scope, validation gates, and remaining production decisions
+- `docs/SANDBOX_TEST_MATRIX.md` — exact controlled CIT/MIT sandbox results and limitations
 - `backend/README.md` — backend module and development guide
 
 ## License

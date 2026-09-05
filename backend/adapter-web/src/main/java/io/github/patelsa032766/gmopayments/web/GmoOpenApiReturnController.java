@@ -59,6 +59,22 @@ public final class GmoOpenApiReturnController {
                 .header(HttpHeaders.LOCATION, destination.toString()).build();
     }
 
+    /** One-time PayPay callback. Success is decided by order inquiry, not by this redirect. */
+    @GetMapping("/paypay")
+    ResponseEntity<Void> payPayCharge(@RequestParam("p") String encodedEnvelope) {
+        Map<String, Object> fields = decodeEnvelope(encodedEnvelope);
+        if (!"WALLET_CHARGE_FINISHED".equals(fields.get("event"))) {
+            throw new IllegalArgumentException("Unexpected GMO PayPay callback event");
+        }
+        var result = returns.complete(PaymentMethodCode.PAYPAY, fields);
+        URI destination = UriComponentsBuilder.fromUriString(customerAppBaseUrl)
+                .path("/checkout")
+                .queryParam("paymentReturn", result.transactionId())
+                .build().encode().toUri();
+        return ResponseEntity.status(HttpStatus.SEE_OTHER)
+                .header(HttpHeaders.LOCATION, destination.toString()).build();
+    }
+
     private static Map<String, Object> decodeEnvelope(String encoded) {
         if (encoded == null || encoded.isBlank() || encoded.length() > MAX_CALLBACK_ENVELOPE) {
             throw new IllegalArgumentException("Invalid GMO callback envelope");

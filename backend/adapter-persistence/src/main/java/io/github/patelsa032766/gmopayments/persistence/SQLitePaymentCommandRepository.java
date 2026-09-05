@@ -71,8 +71,11 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
             // AUTH to GMO.
             var application = jdbc.sql("""
                     SELECT a.id application_id, a.application_number, a.amount_jpy,
+                           a.distribution_channel, a.payment_plan, c.ekyc_verified,
                            r.version configuration_version, c.id customer_id, c.customer_code, c.full_name,
-                           m.cit_execution_mode
+                           m.cit_execution_mode, m.enabled, m.recurring, m.monthly_only,
+                           m.min_amount_jpy, m.max_amount_jpy, m.non_ekyc_max_amount_jpy,
+                           m.channels
                     FROM application_record a
                     JOIN customer c ON c.id = a.customer_id
                     JOIN configuration_release r ON r.status = 'PUBLISHED'
@@ -83,13 +86,20 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                             rs.getString("application_number"), rs.getLong("amount_jpy"),
                             rs.getInt("configuration_version"), rs.getLong("customer_id"),
                             rs.getString("customer_code"), rs.getString("full_name"),
-                            PaymentExecutionMode.from(rs.getString("cit_execution_mode"))))
+                            PaymentExecutionMode.from(rs.getString("cit_execution_mode")),
+                            rs.getString("payment_plan"), rs.getString("distribution_channel"),
+                            rs.getBoolean("ekyc_verified"), rs.getBoolean("enabled"),
+                            rs.getBoolean("recurring"), rs.getBoolean("monthly_only"),
+                            rs.getLong("min_amount_jpy"), rs.getLong("max_amount_jpy"),
+                            nullableLong(rs, "non_ekyc_max_amount_jpy"), rs.getString("channels")))
                     .optional().orElseThrow(() -> new IllegalArgumentException(
                             "Unknown application: " + applicationNumber));
 
+            assertEligible(application, method);
+
             String transactionId = "TXN-" + method.apiValue().toUpperCase() + "-" + compactId();
             String correlationId = "CORR-" + UUID.randomUUID();
-            String product = productCode(method);
+            String product = productCode(method, "MONTHLY".equals(application.paymentPlan()));
             String operation = operation(method, application.executionMode());
             jdbc.sql("""
                     INSERT INTO payment_transaction
@@ -124,7 +134,8 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
             return new Reservation(new PaymentExecutionContext(transactionId, application.applicationNumber(),
                     application.customerCode(), application.customerName(), "A. Suzuki", "Example Insurance",
                     method, product, "CIT", operation, application.amountJpy(),
-                    application.configurationVersion(), correlationId, application.executionMode()), false);
+                    application.configurationVersion(), correlationId, application.executionMode(),
+                    application.paymentPlan()), false);
         }));
     }
 
@@ -162,7 +173,7 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                     appendProviderResource(transactionPk, "PROVIDER_ACCESS", result.providerAccessId(),
                             result.canonicalState());
 
-                    if (shouldProvisionInstrument(context.method(), result.canonicalState())
+                    if (shouldProvisionInstrument(context, result)
                             && !result.requiresAttention()) {
                         long instrumentPk = provisionInstrument(context, execution,
                                 result.providerAccessId());
@@ -321,7 +332,7 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
             appendProviderResource(transactionPk, "PROVIDER_ACCESS", result.providerAccessId(),
                     result.canonicalState());
 
-            if (shouldProvisionInstrument(context.method(), result.canonicalState())) {
+            if (shouldProvisionInstrument(context, result)) {
                 long instrumentPk = provisionInstrument(context, continuation, initialProviderReference);
                 jdbc.sql("UPDATE payment_transaction SET instrument_id=:instrumentId WHERE id=:transactionId")
                         .param("instrumentId", instrumentPk).param("transactionId", transactionPk).update();
@@ -351,7 +362,7 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                        t.method_code, t.product_code, t.initiation_type, t.operation, t.amount_jpy,
                        t.configuration_version,
                        (SELECT correlation_id FROM payment_event WHERE transaction_id = t.id ORDER BY id LIMIT 1) correlation_id,
-                       m.cit_execution_mode
+                       m.cit_execution_mode, a.payment_plan
                 FROM payment_transaction t
                 JOIN application_record a ON a.id = t.application_id
                 JOIN customer c ON c.id = t.customer_id
@@ -364,7 +375,8 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                 PaymentMethodCode.fromApiValue(rs.getString("method_code")), rs.getString("product_code"),
                 rs.getString("initiation_type"), rs.getString("operation"), rs.getLong("amount_jpy"),
                 rs.getInt("configuration_version"), rs.getString("correlation_id"),
-                PaymentExecutionMode.from(rs.getString("cit_execution_mode"))))
+                PaymentExecutionMode.from(rs.getString("cit_execution_mode")),
+                rs.getString("payment_plan")))
                 .optional().orElseThrow(() -> new IllegalStateException("Reserved transaction was not found"));
     }
 
@@ -444,7 +456,7 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                                      PaymentContinuationResult continuation,
                                      String registrationReference) {
         String method = context.method().apiValue();
-        String product = productCode(context.method());
+        String product = context.productCode();
         String providerInstrumentReference = switch (context.method()) {
             case CARD -> findValue(continuation, "cardId");
             case PAYPAY -> firstNonBlank(findValue(continuation, "acceptanceCode"),
@@ -524,11 +536,16 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                 .param("instrumentId", instrumentId).query(Long.class).single();
     }
 
-    private static boolean shouldProvisionInstrument(PaymentMethodCode method, String state) {
+    private static boolean shouldProvisionInstrument(PaymentExecutionContext context,
+                                                     PaymentGatewayResult result) {
+        if (!context.recurringPlan()) return false;
+        String state = result.canonicalState();
+        PaymentMethodCode method = context.method();
         return (method == PaymentMethodCode.CARD
                     && ("AUTHORIZED".equals(state) || "PAID".equals(state)))
                 || (method == PaymentMethodCode.PAYPAY
-                    && ("AUTHORIZED".equals(state) || "PAID".equals(state)))
+                    && (("AUTHORIZED".equals(state) || "PAID".equals(state))
+                        || "PAYPAY_REGISTERED_PAYMENT_FAILED".equals(result.eventType())))
                 || (method == PaymentMethodCode.BANK_DIRECT_REALTIME && "PAID".equals(state))
                 || (method == PaymentMethodCode.KOZA_FURIKAE_SELECT
                     && "MANDATE_REGISTERED_TRANSFER_DUE".equals(state));
@@ -537,6 +554,39 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
     private static boolean isTerminal(String state) {
         return !"REGISTRATION_PENDING".equals(state) && !"PROCESSING".equals(state)
                 && !"RETURN_PROCESSING".equals(state);
+    }
+
+    /**
+     * Repeats the authoritative checkout eligibility checks at the command
+     * boundary. The browser list is presentation only; a caller must not be
+     * able to submit a disabled, out-of-range, wrong-channel, or incompatible
+     * recurring method by constructing the REST request manually.
+     */
+    private static void assertEligible(ApplicationRow application, PaymentMethodCode method) {
+        if (!application.enabled()) {
+            throw new IllegalArgumentException(method.apiValue() + " is disabled");
+        }
+        if (application.amountJpy() < application.minimumAmountJpy()
+                || application.amountJpy() > application.maximumAmountJpy()) {
+            throw new IllegalArgumentException(method.apiValue() + " is not available for this amount");
+        }
+        boolean monthly = "MONTHLY".equals(application.paymentPlan());
+        if (monthly && !application.recurring()) {
+            throw new IllegalArgumentException(method.apiValue() + " is not available for recurring plans");
+        }
+        if (application.monthlyOnly() && !monthly) {
+            throw new IllegalArgumentException(method.apiValue() + " is only available for monthly plans");
+        }
+        boolean channelAllowed = java.util.Arrays.stream(application.channels().split(","))
+                .map(String::trim).anyMatch(application.distributionChannel()::equals);
+        if (!channelAllowed) {
+            throw new IllegalArgumentException(method.apiValue() + " is not available for this channel");
+        }
+        if (method == PaymentMethodCode.BANK_DIRECT_REALTIME && !application.ekycVerified()
+                && application.nonEkycMaximumAmountJpy() != null
+                && application.amountJpy() > application.nonEkycMaximumAmountJpy()) {
+            throw new IllegalArgumentException(method.apiValue() + " requires eKYC for this amount");
+        }
     }
 
     private static String findMaskedAccount(PaymentContinuationResult continuation) {
@@ -575,15 +625,21 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
         return first != null && !first.isBlank() ? first : second;
     }
 
+    private static Long nullableLong(java.sql.ResultSet resultSet, String column)
+            throws java.sql.SQLException {
+        long value = resultSet.getLong(column);
+        return resultSet.wasNull() ? null : value;
+    }
+
     private long transactionPk(String transactionId) {
         return jdbc.sql("SELECT id FROM payment_transaction WHERE transaction_id = :transactionId")
                 .param("transactionId", transactionId).query(Long.class).single();
     }
 
-    private static String productCode(PaymentMethodCode method) {
+    private static String productCode(PaymentMethodCode method, boolean recurringPlan) {
         return switch (method) {
-            case CARD -> "card_openapi";
-            case PAYPAY -> "paypay_recurring";
+            case CARD -> recurringPlan ? "card_recurring" : "card_one_time";
+            case PAYPAY -> recurringPlan ? "paypay_recurring" : "paypay_one_time";
             case BANK_DIRECT_REALTIME -> "bank_direct_realtime";
             case KOZA_FURIKAE_SELECT -> "koza_furikae_select";
             case KOMBINI -> "kombini_openapi";
@@ -626,5 +682,9 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
     private record ApplicationRow(long id, String applicationNumber, long amountJpy,
                                   int configurationVersion, long customerId,
                                   String customerCode, String customerName,
-                                  PaymentExecutionMode executionMode) {}
+                                  PaymentExecutionMode executionMode, String paymentPlan,
+                                  String distributionChannel, boolean ekycVerified,
+                                  boolean enabled, boolean recurring, boolean monthlyOnly,
+                                  long minimumAmountJpy, long maximumAmountJpy,
+                                  Long nonEkycMaximumAmountJpy, String channels) {}
 }

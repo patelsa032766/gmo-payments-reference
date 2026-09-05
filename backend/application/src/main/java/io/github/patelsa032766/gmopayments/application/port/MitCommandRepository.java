@@ -7,7 +7,13 @@ import java.util.Optional;
 public interface MitCommandRepository {
     MitExecutionReservation reserve(String instrumentId,long amountJpy,String merchantReference,String idempotencyKey,
                                     String fingerprint, PaymentExecutionMode executionMode);
-    PaymentSubmissionResult recordSuccess(PaymentExecutionContext context, PaymentGatewayResult result);
-    PaymentSubmissionResult recordFailure(PaymentExecutionContext context,String state,String summary,boolean attention);
+    PaymentSubmissionResult recordSuccess(PaymentExecutionContext context,
+                                          PaymentContinuationResult result);
+    PaymentSubmissionResult recordFailure(PaymentExecutionContext context,String state,String summary,
+                                          boolean attention, ProviderCallEvidence evidence);
+    default PaymentSubmissionResult recordFailure(PaymentExecutionContext context,String state,
+                                                  String summary,boolean attention) {
+        return recordFailure(context,state,summary,attention,null);
+    }
     Optional<PaymentSubmissionResult> findSubmission(String transactionId);
 }
