@@ -22,6 +22,7 @@ With `scripts/run-backend.sh`, the file resolves to `backend/bootstrap/runtime/g
 | `payment_method_configuration` | Eligibility, order, thresholds, channels, EN/JA copy, and Card/PayPay CIT execution policy | Configuration use case |
 | `customer` | Local customer identity/reference | Checkout/MIT bootstrap |
 | `application_record` | Policy/application, amount, plan, customer, chosen configuration version | Checkout |
+| `checkout_experience_settings` | Singleton local-demo selection: application, language, and configuration-authentication flag | Configuration use case |
 | `payment_instrument` | Masked provider reference, lifecycle, optimistic version, Primary/Backup role | Successful registration and preference command |
 | `payment_transaction` | Root financial thread and current canonical projection | Checkout, MIT, batch orchestration |
 | `payment_resource` | Authorization, capture, debit, transfer, refund, or dispute child reference | Provider result/inbound processing |
@@ -66,6 +67,12 @@ Provider IDs can appear on `payment_transaction` and `payment_resource`. All cor
 Checkout first resolves the single `PUBLISHED` release, then reads method rows using that fixed release ID. It cannot mix methods from two versions while publication occurs.
 
 Editing creates or replaces one `DRAFT` release. Publishing runs as a short transaction that retires the previous published row and publishes the draft. Transactions retain their configuration version for later explanation. `cit_execution_mode` stores `AUTH` or `CAPTURE`; checkout resolves it from the application’s pinned release and overwrites any browser-supplied value.
+
+The local test scenario is separate from immutable payment-method releases. Its
+singleton row selects one predefined `application_record`, checkout language,
+and whether configuration-page mutations require the shared development token.
+Changing **Due today** updates the selected application amount in the same short
+SQLite transaction. Financial operator APIs never consult this flag.
 
 ## Payment command interaction
 

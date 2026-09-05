@@ -1,6 +1,6 @@
 import { CurrencyPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { BrowserPaymentConfiguration, CheckoutApiService, PaymentMethodOption, PaymentSubmission } from '../../core/api/checkout-api.service';
+import { BrowserPaymentConfiguration, CheckoutApiService, CheckoutScenario, PaymentMethodOption, PaymentSubmission } from '../../core/api/checkout-api.service';
 import { GmoCardTokenService } from '../../core/api/gmo-card-token.service';
 import { PaymentMethodDetailsComponent } from './payment-method-details/payment-method-details.component';
 
@@ -23,7 +23,8 @@ export class CheckoutPage implements OnInit {
   private readonly api = inject(CheckoutApiService);
   private readonly cardTokens = inject(GmoCardTokenService);
 
-  protected readonly amountJpy = 10_000;
+  protected readonly amountJpy = signal(10_000);
+  protected readonly scenario = signal<CheckoutScenario|null>(null);
   protected readonly methods = signal<PaymentMethodOption[]>([]);
   protected readonly selectedCode = signal<string | null>(null);
   protected readonly loading = signal(true);
@@ -67,7 +68,7 @@ export class CheckoutPage implements OnInit {
         details = { token: token.token, holderName: token.holderName,
           authorizationMode: this.selectedMethod()?.citExecutionMode ?? 'AUTH' };
       }
-      this.api.submitPayment('APP-20260821-001', method, details, this.idempotencyKey).subscribe({
+      this.api.submitPayment(this.scenario()!.applicationNumber, method, details, this.idempotencyKey).subscribe({
         next: result => { this.submission.set(result); this.submitting.set(false); this.follow(result); },
         error: response => { this.submitting.set(false); this.error.set(response?.error?.detail ?? response?.error?.message ?? 'Payment could not be completed. Check the details and try again.'); },
       });
@@ -112,8 +113,10 @@ export class CheckoutPage implements OnInit {
       },
       error: () => this.error.set('Payment security configuration could not be loaded.'),
     });
-    this.api.getOptions({ channel: 'PA', amountJpy: this.amountJpy, monthly: true, ekycVerified: true, language: 'en' })
-      .subscribe({
+    this.api.getCheckoutExperience().subscribe({next:settings=>{
+      const scenario=settings.customers.find(item=>item.applicationNumber===settings.selectedApplicationNumber)!;
+      this.scenario.set(scenario);this.amountJpy.set(scenario.amountJpy);
+      this.api.getOptions({channel:scenario.channel,amountJpy:scenario.amountJpy,monthly:scenario.paymentPlan==='MONTHLY',ekycVerified:scenario.ekycVerified,language:settings.checkoutLanguage}).subscribe({
         next: (response) => {
           this.methods.set(response.methods);
           this.configurationVersion.set(response.configurationVersion);
@@ -123,7 +126,7 @@ export class CheckoutPage implements OnInit {
           this.error.set('Payment methods could not be loaded. Please try again.');
           this.loading.set(false);
         },
-      });
+      });},error:()=>{this.error.set('Checkout scenario could not be loaded.');this.loading.set(false);}});
   }
 
   private follow(result: PaymentSubmission): void {

@@ -7,7 +7,7 @@ The approved customer/operator experience is preserved separately in `ui-mock/` 
 | Route | Audience | Purpose |
 | --- | --- | --- |
 | `/checkout` | Customer | Eligibility-filtered checkout, method-specific collection, provider handoff, and confirmation. |
-| `/configuration` | Administrator | Draft/publish method visibility, order, thresholds, plan eligibility, and English/Japanese preview. |
+| `/configuration` | Administrator | Select a predefined test customer, amount, and language; publish method visibility, order, thresholds, plan eligibility, and CIT policy. |
 | `/operations` | Operator/auditor | Transaction list, chronological lifecycle thread, paired outbound/inbound evidence, webhook setup, and SFTP status. |
 | `/mit` | Payment operator | Saved instruments, Primary/Backup assignment, individual MIT charges, and monthly Koza batches. |
 
@@ -15,6 +15,7 @@ The approved customer/operator experience is preserved separately in `ui-mock/` 
 
 - Server-side method enablement, ordering, plan rules, eKYC rules, channels, amount thresholds, and localized labels.
 - Versioned configuration drafts with explicit publish/discard commands.
+- A SQLite-backed test checkout scenario: predefined customer/application, due-today amount, and English/Japanese language survive navigation and restart.
 - Card browser tokenization, versioned CIT auth/immediate-sale policy, reusable-card registration, and contextual capture.
 - PayPay recurring-account authorization followed by a configured first authorization or immediate sale, with contextual capture where required.
 - Real-time bank debit (`口座直結決済`) registration followed immediately by a debit.
@@ -95,6 +96,14 @@ launcher intentionally ignores that value and uses this application's SQLite
 database. The Configuration page's **Save changes** action writes a draft and
 publishes it as one active version; the choice then survives navigation and
 application restarts.
+
+For low-friction local UI testing, **Require token for configuration changes**
+can be disabled in the saved test scenario. This switch is deliberately narrow:
+it affects only configuration draft/publish/discard and scenario edits. Capture,
+MIT charges, instrument-role changes, Koza batch submission, and reconciliation
+imports always require the operator credential. Production deployments should
+keep configuration authentication enabled and replace the shared development
+token with real identity and role-based authorization.
 
 Configuration precedence is:
 

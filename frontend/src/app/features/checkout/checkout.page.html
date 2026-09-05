@@ -7,10 +7,10 @@
     </div>
 
     <section class="application-card" aria-label="Application summary">
-      <div><span>Application</span><strong>APP-20260821-001</strong></div>
-      <div><span>Policy</span><strong>Annuity</strong></div>
-      <div><span>Due today</span><strong>{{ amountJpy | currency:'JPY':'code':'1.0-0' }}</strong></div>
-      <div><span>Payment plan</span><strong>Monthly policy</strong></div>
+      <div><span>Application</span><strong>{{scenario()?.applicationNumber}}</strong></div>
+      <div><span>Policy</span><strong>{{scenario()?.policyName}}</strong></div>
+      <div><span>Due today</span><strong>{{ amountJpy() | currency:'JPY':'code':'1.0-0' }}</strong></div>
+      <div><span>Payment plan</span><strong>{{scenario()?.paymentPlan==='MONTHLY'?'Monthly policy':'One-time payment'}}</strong></div>
     </section>
 
     @if (!confirmed()) {
@@ -40,7 +40,7 @@
                 </button>
 
                 @if (selectedCode() === method.code) {
-                  <app-payment-method-details [method]="method" [amountJpy]="amountJpy" (detailsChange)="updateDetails($event)" />
+                  <app-payment-method-details [method]="method" [amountJpy]="amountJpy()" (detailsChange)="updateDetails($event)" />
                 }
               </article>
             } @empty {
@@ -60,9 +60,9 @@
             <p>{{ submission()?.state === 'MANDATE_REGISTERED_TRANSFER_DUE' ? 'Koza Furikae is registered for monthly premiums. Use the bank-transfer instructions below for the first premium.' : 'Your first payment step completed successfully.' }}</p></div>
         </div>
         <dl>
-          <div><dt>Application</dt><dd>APP-20260821-001</dd></div>
+          <div><dt>Application</dt><dd>{{scenario()?.applicationNumber}}</dd></div>
           <div><dt>Payment method</dt><dd>{{ selectedMethod()?.label }}</dd></div>
-          <div><dt>Amount</dt><dd>{{ amountJpy | currency:'JPY':'code':'1.0-0' }}</dd></div>
+          <div><dt>Amount</dt><dd>{{ amountJpy() | currency:'JPY':'code':'1.0-0' }}</dd></div>
           <div><dt>Reference</dt><dd>{{ submission()?.transactionId }}</dd></div>
         </dl>
         @if (submission()?.instructions; as instructions) {

@@ -144,6 +144,12 @@ The workflow stores separate registration and first-payment references linked to
 
 Payment-method enablement, ordering, thresholds, distribution channels, eKYC rules, language, webhook enablement, SFTP enablement, retry policies, and Koza calendars are versioned configuration. Administrators edit a draft and explicitly publish an immutable release.
 
+The predefined-customer selector, due-today amount, and checkout language form a
+separate local demonstration scenario stored in `checkout_experience_settings`
+and the selected `application_record`. Its optional authentication flag applies
+only to configuration mutations. Financial operator commands remain authorized
+independently and cannot be bypassed by changing this scenario.
+
 Environment-specific public URLs, the local KanjiAI/Cloudflare route, credentials, and key paths are deployment configuration. They are not runtime business configuration and must not be exported with a configuration release.
 
 ## 10. Security and observability

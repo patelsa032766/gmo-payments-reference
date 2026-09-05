@@ -6,6 +6,8 @@ import io.github.patelsa032766.gmopayments.domain.ConfigurationMethodUpdate;
 import io.github.patelsa032766.gmopayments.domain.PaymentMethodCode;
 import io.github.patelsa032766.gmopayments.application.service.ConfigurationAdministrationService;
 import io.github.patelsa032766.gmopayments.application.port.OperatorActionAuthorizer;
+import io.github.patelsa032766.gmopayments.application.service.CheckoutExperienceService;
+import io.github.patelsa032766.gmopayments.domain.CheckoutExperienceSettings;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,13 +28,16 @@ public final class ConfigurationController {
     private final CheckoutEligibilityService eligibilityService;
     private final ConfigurationAdministrationService administration;
     private final OperatorActionAuthorizer authorizer;
+    private final CheckoutExperienceService experience;
 
     public ConfigurationController(CheckoutEligibilityService eligibilityService,
                                    ConfigurationAdministrationService administration,
-                                   OperatorActionAuthorizer authorizer) {
+                                   OperatorActionAuthorizer authorizer,
+                                   CheckoutExperienceService experience) {
         this.eligibilityService = eligibilityService;
         this.administration = administration;
         this.authorizer = authorizer;
+        this.experience = experience;
     }
 
     @GetMapping("/active")
@@ -46,10 +51,20 @@ public final class ConfigurationController {
                 workspace.draft() == null ? null : ActiveConfigurationResponse.from(workspace.draft()));
     }
 
+    @GetMapping("/experience") CheckoutExperienceSettings experience() { return experience.get(); }
+
+    @PutMapping("/experience") CheckoutExperienceSettings updateExperience(
+            @RequestHeader(name="X-Operator-Token",required=false) String token,
+            @RequestBody ExperienceRequest request) {
+        authorizeConfiguration(token);
+        return experience.update(request.applicationNumber(),request.amountJpy(),
+                request.configurationTokenRequired(),request.checkoutLanguage());
+    }
+
     @PutMapping("/draft") ActiveConfigurationResponse saveDraft(
             @RequestHeader(name="X-Operator-Token", required=false) String token,
             @RequestBody DraftRequest request) {
-        authorize(token);
+        authorizeConfiguration(token);
         var methods=request.methods().stream().map(item -> new ConfigurationMethodUpdate(
                 PaymentMethodCode.fromApiValue(item.code()), item.enabled(), item.recurring(), item.monthlyOnly(),
                 item.minimumAmountJpy(), item.maximumAmountJpy(), item.displayOrder(),
@@ -60,21 +75,24 @@ public final class ConfigurationController {
     @PostMapping("/draft/publish") ActiveConfigurationResponse publish(
             @RequestHeader(name="X-Operator-Token", required=false) String token,
             @RequestHeader(name="X-Operator-Id", defaultValue="configuration-administrator") String actor) {
-        authorize(token); return ActiveConfigurationResponse.from(administration.publish(actor));
+        authorizeConfiguration(token); return ActiveConfigurationResponse.from(administration.publish(actor));
     }
 
     @DeleteMapping("/draft") void discard(
             @RequestHeader(name="X-Operator-Token", required=false) String token) {
-        authorize(token); administration.discardDraft();
+        authorizeConfiguration(token); administration.discardDraft();
     }
 
-    private void authorize(String token) {
+    private void authorizeConfiguration(String token) {
+        if (!experience.get().configurationTokenRequired()) return;
         if(!authorizer.authorized(token)) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
                 "A valid operator credential is required");
     }
 
     record WorkspaceResponse(ActiveConfigurationResponse active, ActiveConfigurationResponse draft) {}
     record DraftRequest(List<ConfiguredMethodResponse> methods) {}
+    record ExperienceRequest(String applicationNumber,long amountJpy,
+                             boolean configurationTokenRequired,String checkoutLanguage) {}
 
     record ActiveConfigurationResponse(
             int version,

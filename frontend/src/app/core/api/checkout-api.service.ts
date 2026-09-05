@@ -10,6 +10,13 @@ export interface CheckoutOptions { configurationVersion: number; methods: Paymen
 export interface ConfiguredMethod { code: string; enabled: boolean; recurring: boolean; monthlyOnly: boolean; minimumAmountJpy: number; maximumAmountJpy: number; displayOrder: number; citExecutionMode: PaymentExecutionMode; }
 export interface ActiveConfiguration { version: number; publishedAt: string; publishedBy: string; methods: ConfiguredMethod[]; }
 export interface ConfigurationWorkspace { active: ActiveConfiguration; draft: ActiveConfiguration | null; }
+export interface CheckoutScenario {
+  applicationNumber:string; customerCode:string; customerName:string; policyName:string;
+  channel:DistributionChannel; paymentPlan:string; ekycVerified:boolean; amountJpy:number;
+}
+export interface CheckoutExperienceSettings {
+  selectedApplicationNumber:string; configurationTokenRequired:boolean; checkoutLanguage:CheckoutLanguage; customers:CheckoutScenario[];
+}
 export interface CheckoutOptionsQuery { channel: DistributionChannel; amountJpy: number; monthly: boolean; ekycVerified: boolean; language: CheckoutLanguage; }
 export interface BrowserPaymentConfiguration {
   liveCallsEnabled: boolean;
@@ -51,6 +58,15 @@ export class CheckoutApiService {
   }
   getConfigurationWorkspace(): Observable<ConfigurationWorkspace> {
     return this.http.get<ConfigurationWorkspace>('/api/v1/configuration/workspace');
+  }
+  getCheckoutExperience(): Observable<CheckoutExperienceSettings> {
+    return this.http.get<CheckoutExperienceSettings>('/api/v1/configuration/experience');
+  }
+  saveCheckoutExperience(applicationNumber:string,amountJpy:number,
+                         configurationTokenRequired:boolean,checkoutLanguage:CheckoutLanguage,operatorToken:string):Observable<CheckoutExperienceSettings>{
+    return this.http.put<CheckoutExperienceSettings>('/api/v1/configuration/experience',
+      {applicationNumber,amountJpy,configurationTokenRequired,checkoutLanguage},
+      {headers:{'X-Operator-Token':operatorToken}});
   }
   saveConfigurationDraft(methods: ConfiguredMethod[], operatorToken: string): Observable<ActiveConfiguration> {
     return this.http.put<ActiveConfiguration>('/api/v1/configuration/draft', { methods },

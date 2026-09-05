@@ -2,6 +2,7 @@ package io.github.patelsa032766.gmopayments;
 
 import io.github.patelsa032766.gmopayments.application.port.CheckoutConfigurationRepository;
 import io.github.patelsa032766.gmopayments.application.service.CheckoutPaymentService;
+import io.github.patelsa032766.gmopayments.application.service.CheckoutExperienceService;
 import io.github.patelsa032766.gmopayments.application.service.CapturePaymentService;
 import io.github.patelsa032766.gmopayments.application.service.PaymentOperationsQueryService;
 import io.github.patelsa032766.gmopayments.domain.PaymentMethodCode;
@@ -30,6 +31,9 @@ class GmoPaymentsApplicationTest {
     @Autowired
     private PaymentOperationsQueryService operations;
 
+    @Autowired
+    private CheckoutExperienceService checkoutExperience;
+
     @Test
     void contextLoadsWithMigratedSQLiteConfiguration() {
         // Querying through the application port is intentional: a context-only
@@ -39,6 +43,25 @@ class GmoPaymentsApplicationTest {
 
         assertThat(release.version()).isEqualTo(1);
         assertThat(release.paymentMethods()).hasSize(7);
+    }
+
+    @Test
+    void checkoutScenarioPersistsCustomerAmountLanguageAndConfigurationTokenPolicy() {
+        var original = checkoutExperience.get();
+        var originalCustomer = original.selected();
+        try {
+            var changed = checkoutExperience.update("APP-20260904-025", 25_000, false, "ja");
+
+            assertThat(changed.selected().customerName()).isEqualTo("Ken Ito");
+            assertThat(changed.selected().amountJpy()).isEqualTo(25_000);
+            assertThat(changed.checkoutLanguage()).isEqualTo("ja");
+            assertThat(changed.configurationTokenRequired()).isFalse();
+        } finally {
+            // Tests share one migrated fixture DB, so restore the original
+            // singleton and keep every test independent of execution order.
+            checkoutExperience.update(original.selectedApplicationNumber(), originalCustomer.amountJpy(),
+                    original.configurationTokenRequired(), original.checkoutLanguage());
+        }
     }
 
     @Test

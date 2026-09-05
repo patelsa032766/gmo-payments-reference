@@ -76,12 +76,16 @@ The actual field matrix varies by the GMO product contract and supported bank. V
 ```http
 GET    /api/v1/configuration/active
 GET    /api/v1/configuration/workspace
+GET    /api/v1/configuration/experience
+PUT    /api/v1/configuration/experience
 PUT    /api/v1/configuration/draft
 POST   /api/v1/configuration/draft/publish
 DELETE /api/v1/configuration/draft
 ```
 
-Write commands require `X-Operator-Token`. A draft request contains the complete ordered method collection; each item includes `code`, `enabled`, `recurring`, `monthlyOnly`, `minimumAmountJpy`, `maximumAmountJpy`, `citExecutionMode`, and display order. `citExecutionMode` is merchant policy—not customer input—and is meaningful for Card and PayPay. Publishing is atomic: the previous release retires and the draft becomes the one published release.
+The experience resource returns predefined customer/application scenarios and persists the selected application, due-today amount, checkout language, and `configurationTokenRequired`. Configuration write commands require `X-Operator-Token` when that saved flag is enabled. The flag does not weaken financial operator endpoints, which always require a token.
+
+A draft request contains the complete ordered method collection; each item includes `code`, `enabled`, `recurring`, `monthlyOnly`, `minimumAmountJpy`, `maximumAmountJpy`, `citExecutionMode`, and display order. `citExecutionMode` is merchant policy—not customer input—and is meaningful for Card and PayPay. Publishing is atomic: the previous release retires and the draft becomes the one published release.
 
 ## Operator transaction threads
 

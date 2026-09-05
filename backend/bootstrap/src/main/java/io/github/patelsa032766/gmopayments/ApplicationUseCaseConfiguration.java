@@ -26,6 +26,8 @@ import io.github.patelsa032766.gmopayments.application.service.ReconciliationImp
 import io.github.patelsa032766.gmopayments.application.service.BrowserReturnService;
 import io.github.patelsa032766.gmopayments.application.port.CaptureCommandRepository;
 import io.github.patelsa032766.gmopayments.application.service.CapturePaymentService;
+import io.github.patelsa032766.gmopayments.application.port.CheckoutExperienceRepository;
+import io.github.patelsa032766.gmopayments.application.service.CheckoutExperienceService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -38,6 +40,10 @@ public class ApplicationUseCaseConfiguration {
     @Bean
     CheckoutEligibilityService checkoutEligibilityService(CheckoutConfigurationRepository repository) {
         return new CheckoutEligibilityService(repository);
+    }
+
+    @Bean CheckoutExperienceService checkoutExperienceService(CheckoutExperienceRepository repository) {
+        return new CheckoutExperienceService(repository);
     }
 
     @Bean

@@ -10,6 +10,16 @@ describe('CheckoutPage', () => {
       providers: [{
         provide: CheckoutApiService,
         useValue: {
+          getCheckoutExperience: () => of({
+            selectedApplicationNumber: 'APP-20260821-001',
+            configurationTokenRequired: true,
+            checkoutLanguage: 'en',
+            customers: [{
+              applicationNumber: 'APP-20260821-001', customerCode: 'CUST-10042',
+              customerName: 'Aiko Tanaka', policyName: 'Annuity', channel: 'PA',
+              paymentPlan: 'MONTHLY', ekycVerified: true, amountJpy: 10_000,
+            }],
+          }),
           getOptions: () => of({
             configurationVersion: 1,
             methods: [{
