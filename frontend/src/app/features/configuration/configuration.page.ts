@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { FormsModule } from '@angular/forms';
 import { ActiveConfiguration, BrowserPaymentConfiguration, CheckoutApiService, CheckoutExperienceSettings, CheckoutScenario, ConfiguredMethod } from '../../core/api/checkout-api.service';
 import { OperatorCredentialService } from '../../core/auth/operator-credential.service';
-import { switchMap } from 'rxjs';
+import { map, switchMap } from 'rxjs';
 
 /** Protected copy-on-write checkout configuration administrator. */
 @Component({
@@ -58,22 +58,37 @@ export class ConfigurationPage implements OnInit {
   protected customerChanged():void{const customer=this.selectedCustomer();if(customer)this.amount=customer.amountJpy;this.changed();}
   protected move(index:number,direction:-1|1):void { const next=index+direction; const methods=[...this.methods()]; if(next<0||next>=methods.length)return; [methods[index],methods[next]]=[methods[next],methods[index]]; methods.forEach((method,i)=>method.displayOrder=i+1); this.methods.set(methods); this.changed(); }
   protected publish():void {
-    if(this.persistedTokenRequired()&&!this.operatorToken){this.message.set('Enter the operator token to save changes.');return;}
+    if(this.tokenNeeded()&&!this.operatorToken){this.message.set('Enter the operator token to save changes.');return;}
     if(!this.selectedCustomer()||!Number.isFinite(this.amount)||this.amount<1){this.message.set('Choose a customer and enter a valid amount of at least JPY 1.');return;}
     this.saving.set(true);
-    this.api.saveConfigurationDraft(this.methods(),this.operatorToken).pipe(
+    const publishMethods = () => this.api.saveConfigurationDraft(this.methods(),this.operatorToken).pipe(
       switchMap(draft=>{this.draftVersion.set(draft.version);return this.api.publishConfiguration(this.operatorToken);}),
-      switchMap(active=>{this.configuration.set(active);return this.api.saveCheckoutExperience(this.selectedApplication,this.amount,this.configurationTokenRequired,this.language,this.operatorToken);})
-    ).subscribe({next:settings=>{this.experience.set(settings);this.persistedTokenRequired.set(settings.configurationTokenRequired);this.methods.set(structuredClone(this.configuration()!.methods));this.draftVersion.set(null);this.dirty.set(false);this.saving.set(false);this.message.set(`Saved. Version ${this.configuration()!.version} and the checkout scenario are now active.`);},error:()=>this.failure('Changes could not be saved. Check the operator token and values.')});
+    );
+    const saveExperience = () => this.api.saveCheckoutExperience(this.selectedApplication,this.amount,
+      this.configurationTokenRequired,this.language,this.operatorToken);
+
+    // When protection is being disabled, persist that narrow policy first so
+    // the following draft/publish calls are intentionally credential-free.
+    // In every other case methods publish first, avoiding an enable transition
+    // that would make the remainder of the same save unexpectedly require a token.
+    const save = this.persistedTokenRequired()&&!this.configurationTokenRequired
+      ? saveExperience().pipe(switchMap(settings=>publishMethods().pipe(
+          map(active=>{this.configuration.set(active);return settings;}))))
+      : publishMethods().pipe(switchMap(active=>{
+          this.configuration.set(active);return saveExperience();
+        }));
+
+    save.subscribe({next:settings=>{this.experience.set(settings);this.persistedTokenRequired.set(settings.configurationTokenRequired);this.methods.set(structuredClone(this.configuration()!.methods));this.draftVersion.set(null);this.dirty.set(false);this.saving.set(false);this.message.set(`Saved. Version ${this.configuration()!.version} and the checkout scenario are now active.`);},error:()=>this.failure('Changes could not be saved. Check the operator token and values.')});
   }
   protected discard():void {
     if(!this.configuration())return; if(!this.draftVersion()){this.restorePersistedValues();this.dirty.set(false);return;}
-    if(this.persistedTokenRequired()&&!this.operatorToken){this.message.set('Enter the operator token to discard the saved draft.');return;}
+    if(this.tokenNeeded()&&!this.operatorToken){this.message.set('Enter the operator token to discard the saved draft.');return;}
     this.api.discardConfigurationDraft(this.operatorToken).subscribe({next:()=>{this.restorePersistedValues();this.draftVersion.set(null);this.dirty.set(false);this.message.set('Draft discarded.');},error:()=>this.failure('The draft could not be discarded.')});
   }
   protected name(code:string):string { return ({card:'Credit or debit card',paypay:'PayPay',bankDirect:'Real-time bank debit',kozaFurikae:'Bank transfer today + monthly bank debit',kombini:'Convenience store',payeasy:'Pay-easy',furikomi:'Bank transfer'} as Record<string,string>)[code]??code; }
   protected supportsAuthorization(code:string):boolean{return code==='card'||code==='paypay';}
-  protected tokenNeeded():boolean{return this.persistedTokenRequired();}
+  /** The visible target state controls the button and sole credential field. */
+  protected tokenNeeded():boolean{return this.configurationTokenRequired;}
   private restorePersistedValues():void{
     this.methods.set(structuredClone(this.configuration()!.methods));
     const settings=this.experience();

@@ -56,7 +56,13 @@ public final class ConfigurationController {
     @PutMapping("/experience") CheckoutExperienceSettings updateExperience(
             @RequestHeader(name="X-Operator-Token",required=false) String token,
             @RequestBody ExperienceRequest request) {
-        authorizeConfiguration(token);
+        // The local demo deliberately allows the administrator to turn off
+        // configuration-page authentication without first supplying a token.
+        // This exception is scoped to configuration only: no payment,
+        // capture, MIT, preference, batch, or reconciliation controller reads
+        // this flag. Re-enabling while it is already required still validates
+        // the credential through authorizeConfiguration().
+        if (request.configurationTokenRequired()) authorizeConfiguration(token);
         return experience.update(request.applicationNumber(),request.amountJpy(),
                 request.configurationTokenRequired(),request.checkoutLanguage());
     }

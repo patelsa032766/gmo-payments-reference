@@ -105,6 +105,10 @@ imports always require the operator credential. Production deployments should
 keep configuration authentication enabled and replace the shared development
 token with real identity and role-based authorization.
 
+Turning the switch off enables **Save changes** immediately and does not require
+a token for that save. This behavior exists for local demonstration convenience;
+do not expose the Configuration route publicly with this option available.
+
 Configuration precedence is:
 
 1. Environment/secret-manager values
