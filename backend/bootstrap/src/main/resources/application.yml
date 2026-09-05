@@ -63,6 +63,10 @@ gmo:
   # reverse proxy to inject this value as X-Webhook-Ingress-Token. Never put the
   # value in source control or in a URL/query string.
   webhook-ingress-token: ${GMO_WEBHOOK_INGRESS_TOKEN:}
+  # HMAC secret for the per-order csrfToken GMO echoes in OpenAPI callbacks
+  # and webhooks. If blank, the private shop password is used. Production
+  # deployments should provide an independent random value.
+  webhook-csrf-secret: ${GMO_WEBHOOK_CSRF_SECRET:}
   retry:
     # Applied only to authenticated inquiries. Never automatically retry a
     # financial write: inquire first when its outcome is unknown.

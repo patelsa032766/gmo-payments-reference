@@ -156,6 +156,7 @@ GMO_BROWSER_RETURN_BASE_URL=https://your-public-host.example
 GMO_CUSTOMER_APP_BASE_URL=http://127.0.0.1:4200
 GMO_WEBHOOKS_ENABLED=true
 GMO_WEBHOOK_INGRESS_TOKEN=a-long-random-secret
+GMO_WEBHOOK_CSRF_SECRET=an-independent-random-hmac-secret
 ```
 
 Public callbacks are:
@@ -166,7 +167,29 @@ Public callbacks are:
 - `POST /webhooks/gmo/protocol/return/koza-furikae`
 - `GET /api/v1/gmo/returns/paypay-registration`
 
-The two notification endpoints require `X-Webhook-Ingress-Token`. A trusted edge must inject that header after restricting direct origin access; do not put the secret in a URL. Browser-return endpoints use provider references and server-side inquiry/integrity validation instead of treating the browser as financial authority.
+OpenAPI requests include a URL-safe, per-order `merchant.csrfToken` derived with
+`GMO_WEBHOOK_CSRF_SECRET`; GMO echoes it in the webhook and the application
+validates it in constant time. The OpenAPI endpoint also accepts
+`X-Webhook-Ingress-Token` when a trusted edge injects it. Legacy protocol
+notifications do not carry the OpenAPI token and therefore require that edge
+header. Never put either secret in a URL. Browser-return endpoints use provider
+references and server-side inquiry/integrity validation instead of treating the
+browser as financial authority.
+
+For local tunnels, publish only the callback paths instead of the whole
+application. A Cloudflare ingress can use the following shape; replace the
+hostname, tunnel ID, credentials path, and origin for your environment:
+
+```yaml
+ingress:
+  - hostname: payments.example.com
+    path: ^/api/v1/gmo/returns/.*
+    service: http://127.0.0.1:8080
+  - hostname: payments.example.com
+    path: ^/webhooks/gmo/.*
+    service: http://127.0.0.1:8080
+  - service: http_status:404
+```
 
 When `GMO_WEBHOOKS_ENABLED=false`, notification endpoints respond as unavailable and GMO webhook URLs are omitted where the product permits. Browser-return completion and SFTP reconciliation remain independent.
 

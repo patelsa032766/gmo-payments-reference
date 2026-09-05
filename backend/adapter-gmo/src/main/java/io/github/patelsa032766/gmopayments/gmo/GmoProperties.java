@@ -27,6 +27,7 @@ public class GmoProperties {
     private String protocolNotificationUrl = "";
     private boolean webhooksEnabled;
     private String webhookIngressToken = "";
+    private String webhookCsrfSecret = "";
     private final Retry retry = new Retry();
     private final Merchant merchant = new Merchant();
 
@@ -60,6 +61,8 @@ public class GmoProperties {
     public void setWebhooksEnabled(boolean value) { this.webhooksEnabled = value; }
     public String getWebhookIngressToken() { return webhookIngressToken; }
     public void setWebhookIngressToken(String value) { this.webhookIngressToken = value; }
+    public String getWebhookCsrfSecret() { return webhookCsrfSecret; }
+    public void setWebhookCsrfSecret(String value) { this.webhookCsrfSecret = value; }
     public Retry getRetry() { return retry; }
     public Merchant getMerchant() { return merchant; }
 
@@ -79,6 +82,15 @@ public class GmoProperties {
         return isBlank(protocolNotificationUrl)
                 ? getPublicBaseUrl() + "/webhooks/gmo/protocol"
                 : protocolNotificationUrl.trim();
+    }
+
+    /**
+     * Secret used to derive a non-reversible, per-order CSRF value. A separate
+     * deployment secret is preferred; falling back to the already-private shop
+     * password keeps a local sandbox secure without another mandatory secret.
+     */
+    String resolvedWebhookCsrfSecret() {
+        return isBlank(webhookCsrfSecret) ? shopPass : webhookCsrfSecret.trim();
     }
 
     public void requireOpenApiCredentials() {

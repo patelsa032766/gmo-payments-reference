@@ -24,7 +24,8 @@ public class GmoRequestFactory {
     public Map<String, Object> cardCharge(CheckoutFacts facts, String mpToken, String holderName,
                                            String authorizationMode) {
         return Map.of(
-                "merchant", merchant("/api/v1/gmo/returns/card?application=" + facts.applicationNumber()),
+                "merchant", merchant("/api/v1/gmo/returns/card?application=" + facts.applicationNumber(),
+                        facts.providerOrderId()),
                 "order", order(facts, facts.initiationType()),
                 "payer", Map.of("name", facts.customerName()),
                 "creditInformation", Map.of(
@@ -42,7 +43,7 @@ public class GmoRequestFactory {
         if (!blank(cardId)) card.put("cardId", cardId);
         if (!blank(holderName)) card.put("cardholderName", holderName);
         return Map.of(
-                "merchant", merchant(null),
+                "merchant", merchant(null, facts.providerOrderId()),
                 "order", order(facts, "MIT"),
                 "payer", Map.of("name", facts.customerName(), "accountId", facts.customerCode()),
                 "creditOnfileInformation", Map.of(
@@ -61,7 +62,7 @@ public class GmoRequestFactory {
      */
     public Map<String, Object> storeCard(String chargeAccessId, String memberId, String memberName) {
         return Map.of(
-                "merchant", merchant(null),
+                "merchant", merchant(null, null),
                 "creditStoringInformation", Map.of(
                         "referrer", Map.of("accessId", chargeAccessId),
                         "onfileCardOptions", Map.of(
@@ -73,7 +74,8 @@ public class GmoRequestFactory {
 
     public Map<String, Object> payPayCharge(CheckoutFacts facts, String authorizationMode) {
         return Map.of(
-                "merchant", merchant("/api/v1/gmo/returns/paypay?application=" + facts.applicationNumber()),
+                "merchant", merchant("/api/v1/gmo/returns/paypay?application=" + facts.applicationNumber(),
+                        facts.providerOrderId()),
                 "order", order(facts, facts.initiationType()),
                 "payer", Map.of("name", facts.customerName(), "accountId", facts.customerCode()),
                 "walletInformation", Map.of("walletType", "PAYPAY",
@@ -87,7 +89,7 @@ public class GmoRequestFactory {
         order.put("clientFields", clientFields(facts));
         return Map.of(
                 "merchant", merchant("/api/v1/gmo/returns/paypay-registration?application="
-                        + facts.applicationNumber()),
+                        + facts.applicationNumber(), facts.providerOrderId()),
                 "order", order,
                 "payer", Map.of("name", facts.customerName(), "accountId", facts.customerCode()),
                 "walletAuthorizationInformation", Map.of(
@@ -112,7 +114,7 @@ public class GmoRequestFactory {
     public Map<String, Object> savedPayPayCharge(CheckoutFacts facts, String memberId,
                                                   String authorizationMode) {
         return Map.of(
-                "merchant", merchant(null),
+                "merchant", merchant(null, facts.providerOrderId()),
                 "order", order(facts, "MIT"),
                 "payer", Map.of("name", facts.customerName(), "accountId", facts.customerCode()),
                 "walletOnfileInformation", Map.of(
@@ -137,7 +139,7 @@ public class GmoRequestFactory {
         if ("KONBINI".equals(cashType)) {
             cash.put("cashOptions", Map.of("konbiniCode", normalizeKonbini(konbiniCode)));
         }
-        return Map.of("merchant", merchant(null), "order", order(facts, "CIT"),
+        return Map.of("merchant", merchant(null, facts.providerOrderId()), "order", order(facts, "CIT"),
                 "payer", payer, "cashInformation", cash);
     }
 
@@ -221,7 +223,7 @@ public class GmoRequestFactory {
                 "CheckMode", "NOCHECK_ACCOUNT");
     }
 
-    private Map<String, Object> merchant(String callbackPath) {
+    private Map<String, Object> merchant(String callbackPath, String orderId) {
         var merchant = new LinkedHashMap<String, Object>();
         var source = properties.getMerchant();
         merchant.put("name", source.getName());
@@ -236,6 +238,8 @@ public class GmoRequestFactory {
         if (properties.resolvedOpenapiWebhookUrl() != null) {
             merchant.put("webhookUrl", properties.resolvedOpenapiWebhookUrl());
         }
+        String csrfToken = GmoWebhookCsrf.create(properties, orderId);
+        if (csrfToken != null) merchant.put("csrfToken", csrfToken);
         if (callbackPath != null) merchant.put("callbackUrl", properties.browserReturnBaseUrl() + callbackPath);
         return merchant;
     }

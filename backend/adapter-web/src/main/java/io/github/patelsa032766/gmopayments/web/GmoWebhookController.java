@@ -39,8 +39,9 @@ public final class GmoWebhookController {
     public Map<String, Object> receiveOpenApi(
             @RequestHeader(name = INGRESS_HEADER, required = false) String token,
             @RequestBody(required = false) Map<String, Object> payload) {
-        authorize(token);
-        InboundMessageResult result = inboundMessages.receive("OPENAPI", payload == null ? Map.of() : payload);
+        Map<String, Object> body = payload == null ? Map.of() : payload;
+        authorizeOpenApi(token, body);
+        InboundMessageResult result = inboundMessages.receive("OPENAPI", body);
         return Map.of("ok", true, "messageId", result.messageId(), "duplicate", result.duplicate(),
                 "linked", result.linked(), "applied", result.applied());
     }
@@ -50,7 +51,7 @@ public final class GmoWebhookController {
     public ResponseEntity<String> receiveProtocol(
             @RequestHeader(name = INGRESS_HEADER, required = false) String token,
             @RequestBody MultiValueMap<String, String> form) {
-        authorize(token);
+        authorizeProtocol(token);
         Map<String, Object> payload = new LinkedHashMap<>();
         form.forEach((key, values) -> payload.put(key,
                 values == null || values.isEmpty() ? "" : values.get(values.size() - 1)));
@@ -59,12 +60,23 @@ public final class GmoWebhookController {
         return ResponseEntity.ok().contentType(MediaType.TEXT_PLAIN).body("0");
     }
 
-    private void authorize(String token) {
+    private void requireEnabled() {
         if (!authorizer.enabled()) {
             // Do not advertise a disabled callback route to opportunistic scans.
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
-        if (!authorizer.authorized(token)) {
+    }
+
+    private void authorizeOpenApi(String token, Map<String, ?> payload) {
+        requireEnabled();
+        if (!authorizer.authorizedOpenApi(token, payload)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid GMO OpenAPI webhook credential");
+        }
+    }
+
+    private void authorizeProtocol(String token) {
+        requireEnabled();
+        if (!authorizer.authorizedProtocol(token)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid webhook ingress credential");
         }
     }

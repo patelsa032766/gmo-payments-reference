@@ -180,9 +180,12 @@ OpenAPI JSON:
 
 ```http
 POST /webhooks/gmo/openapi
-X-Webhook-Ingress-Token: injected-by-trusted-edge
 Content-Type: application/json
 ```
+
+Each originating OpenAPI request supplies a per-order `merchant.csrfToken`;
+GMO echoes it in the JSON body and the receiver verifies it. A trusted edge may
+alternatively inject `X-Webhook-Ingress-Token`.
 
 Legacy protocol notification:
 
@@ -192,7 +195,7 @@ X-Webhook-Ingress-Token: injected-by-trusted-edge
 Content-Type: application/x-www-form-urlencoded
 ```
 
-When disabled, the endpoints return 404. When enabled, bad ingress credentials return 401. Valid messages are sanitized, payload-hash deduplicated, durably stored, linked by provider/application reference, and acknowledged only after durable receipt. The protocol endpoint returns the literal body `0` on success.
+When disabled, the endpoints return 404. When enabled, an invalid OpenAPI CSRF/edge credential or invalid protocol edge credential returns 401. Valid messages are sanitized, payload-hash deduplicated, durably stored, linked by provider/application reference, and acknowledged only after durable receipt. The protocol endpoint returns the literal body `0` on success.
 
 Browser returns are separate:
 

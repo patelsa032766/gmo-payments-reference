@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Map;
 
 /** Constant-time validation of the secret injected by the trusted edge. */
 @Component
@@ -21,9 +22,19 @@ public final class GmoWebhookIngressAuthorizer implements WebhookIngressAuthoriz
     }
 
     @Override
-    public boolean authorized(String presentedToken) {
+    public boolean authorizedOpenApi(String presentedToken, Map<String, ?> payload) {
+        return enabled() && (authorizedEdgeToken(presentedToken)
+                || GmoWebhookCsrf.matches(properties, payload));
+    }
+
+    @Override
+    public boolean authorizedProtocol(String presentedToken) {
+        return enabled() && authorizedEdgeToken(presentedToken);
+    }
+
+    private boolean authorizedEdgeToken(String presentedToken) {
         String expected = properties.getWebhookIngressToken();
-        if (!enabled() || expected == null || expected.isBlank()
+        if (expected == null || expected.isBlank()
                 || presentedToken == null || presentedToken.isBlank()) return false;
         return MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8),
                 presentedToken.getBytes(StandardCharsets.UTF_8));

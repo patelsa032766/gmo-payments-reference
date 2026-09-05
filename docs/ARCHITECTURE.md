@@ -174,14 +174,14 @@ The reference topology is one Angular static deployment and one Spring Boot proc
 Public HTTPS edge
   /                 -> Angular static assets
   /api, /actuator   -> Spring Boot (operator/API access policy at edge)
-  /webhooks/gmo/*   -> Spring Boot (edge injects ingress credential)
+  /webhooks/gmo/*   -> Spring Boot (OpenAPI order CSRF or edge credential)
                               |
                     private SQLite volume
                        /             \
                  GMO egress       SFTP egress
 ```
 
-The process should run as a single writer instance for SQLite. Horizontal application replicas require a different persistence adapter or strict ownership that guarantees only one writer. The public edge must prevent bypassing the webhook-header injection path, terminate TLS, apply request-size/rate limits, and separate operator authentication from customer checkout access.
+The process should run as a single writer instance for SQLite. Horizontal application replicas require a different persistence adapter or strict ownership that guarantees only one writer. OpenAPI requests carry a per-order HMAC-derived `csrfToken` that GMO echoes in notifications; the receiver verifies it before persistence. Legacy protocol notifications still require a trusted edge to inject the ingress credential. The public edge must terminate TLS, apply request-size/rate limits, publish only required callback paths, and separate operator authentication from customer checkout access.
 
 Environment/secret-manager values configure provider credentials, callback origin, ingress token, SFTP identity, and the operator token. SQLite stores only the local-demo boolean that decides whether the operator token is enforced; it never stores the credential. The switch applies uniformly to configuration, capture, MIT, payment-order, batch, and manual reconciliation mutations. SQLite configuration releases otherwise contain business rules only and can therefore move between environments without exporting secrets.
 

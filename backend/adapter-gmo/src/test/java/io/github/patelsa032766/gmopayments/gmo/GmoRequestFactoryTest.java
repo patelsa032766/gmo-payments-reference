@@ -34,6 +34,24 @@ class GmoRequestFactoryTest {
     }
 
     @Test
+    void enabledWebhookCarriesAStableOrderBoundCsrfToken() {
+        properties.setWebhooksEnabled(true);
+
+        var first = factory.payPayRecurringRegistration(facts);
+        var second = factory.payPayRecurringRegistration(facts);
+        @SuppressWarnings("unchecked")
+        var firstMerchant = (java.util.Map<String, Object>) first.get("merchant");
+        @SuppressWarnings("unchecked")
+        var secondMerchant = (java.util.Map<String, Object>) second.get("merchant");
+
+        assertThat(firstMerchant).containsEntry("webhookUrl", "https://public.example/webhooks/gmo/openapi");
+        assertThat(firstMerchant.get("csrfToken")).isEqualTo(secondMerchant.get("csrfToken"));
+        assertThat(String.valueOf(firstMerchant.get("csrfToken")))
+                .hasSize(32)
+                .matches("[A-Za-z0-9_-]+");
+    }
+
+    @Test
     void recurringPayPayStartsWithConsentAndUsesAnAmountFreeMitOrder() {
         var payload = factory.payPayRecurringRegistration(facts);
 
