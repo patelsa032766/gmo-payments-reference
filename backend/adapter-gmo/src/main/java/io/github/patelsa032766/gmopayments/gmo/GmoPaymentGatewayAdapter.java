@@ -396,11 +396,12 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
         String token = required(details, "token");
         String holder = required(details, "holderName").toUpperCase();
         String authorizationMode = value(details, "authorizationMode", "AUTH").toUpperCase();
+        boolean immediateCapture = "CAPTURE".equals(authorizationMode);
         var chargeRequest = requests.cardCharge(facts(context), token, holder, authorizationMode);
         var charge = openApi.post("/credit/charge", chargeRequest, true,
                 providerIdempotency(context, "card-first-auth"));
         var chargeOutcome = openApiResult(context, charge, chargeRequest, "/credit/charge",
-                "CreditCharge", "Card authorization submitted");
+                "CreditCharge", immediateCapture ? "Card payment captured" : "Card authorization submitted");
         var exchanges = new ArrayList<ProviderCallEvidence>();
         exchanges.add(evidence("OPENAPI", "CreditCharge", "/credit/charge",
                 chargeRequest, charge, chargeOutcome.canonicalState()));
@@ -429,7 +430,10 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
             combined.put("storedCard", stored.sanitizedPayload());
             var outcome = new PaymentGatewayResult(chargeOutcome.canonicalState(),
                     chargeOutcome.providerStatus(), chargeOutcome.providerOrderId(), accessId,
-                    "CARD_AUTHORIZED_AND_STORED", "Card authorized and saved for recurring payments",
+                    immediateCapture ? "PAYMENT_CAPTURED" : "CARD_AUTHORIZED_AND_STORED",
+                    immediateCapture
+                            ? "Card payment captured and saved for recurring payments"
+                            : "Card authorized and saved for recurring payments",
                     false, chargeOutcome.nextAction(), chargeOutcome.instructions(), "OPENAPI",
                     "CreditStoreCard", "/credit/storeCard", stored.statusCode(),
                     safeInt(stored.durationMs()), GmoSanitizer.sanitize(storeRequest), combined);
@@ -443,7 +447,9 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
                     exception.sanitizedPayload(), exception.outcomeUnknown()
                             ? "STORE_OUTCOME_UNKNOWN" : "STORE_FAILED"));
             var attention = withAttention(chargeOutcome,
-                    "Card authorized; reusable-card setup requires operator review");
+                    immediateCapture
+                            ? "Card payment captured; reusable-card setup requires operator review"
+                            : "Card authorized; reusable-card setup requires operator review");
             return new PaymentContinuationResult(attention, exchanges);
         }
     }
@@ -581,13 +587,16 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
             case KOZA_FURIKAE_SELECT -> "MANDATE_REGISTERED_TRANSFER_DUE";
             case KOMBINI, PAYEASY, FURIKOMI -> "INSTRUCTIONS_ISSUED";
         };
+        boolean captured = (context.method() == io.github.patelsa032766.gmopayments.domain.PaymentMethodCode.CARD
+                || context.method() == io.github.patelsa032766.gmopayments.domain.PaymentMethodCode.PAYPAY)
+                && context.executionMode() == io.github.patelsa032766.gmopayments.domain.PaymentExecutionMode.CAPTURE;
         return new PaymentGatewayResult(state, state, context.applicationNumber(),
-                "simulated-" + context.transactionId(), "SIMULATED_RESULT",
+                "simulated-" + context.transactionId(), captured ? "PAYMENT_CAPTURED" : "SIMULATED_RESULT",
                 switch (context.method()) {
                     case KOZA_FURIKAE_SELECT -> "Koza Furikae registered; first-premium transfer instructions issued";
                     case BANK_DIRECT_REALTIME -> "Bank account registered and immediate debit completed";
                     case KOMBINI, PAYEASY, FURIKOMI -> "Payment instructions issued";
-                    default -> "Payment authorization completed";
+                    default -> captured ? "Payment captured" : "Payment authorization completed";
                 }, false, PaymentNextAction.none(), instructions, "OPENAPI", "SimulatedCheckout",
                 null, 200, 0, Map.of("mode", "SIMULATED"), Map.of("status", state));
     }
