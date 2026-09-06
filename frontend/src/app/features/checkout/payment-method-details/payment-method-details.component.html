@@ -33,9 +33,9 @@
       </div>
       <div class="compact-fields">
         <label class="field"><span>Bank</span><select name="kozaBank" [(ngModel)]="details['bankCode']" (ngModelChange)="changed()"><option value="0005">Mitsubishi UFJ Bank</option><option value="0009">Sumitomo Mitsui Banking Corporation</option><option value="0001">Mizuho Bank</option></select></label>
-        <label class="field"><span>Branch code</span><input name="kozaBranch" [(ngModel)]="details['branchCode']" (ngModelChange)="changed()" inputmode="numeric" placeholder="001" /></label>
+        <label class="field"><span>Branch code</span><input name="kozaBranch" type="text" [ngModel]="details['branchCode']" (ngModelChange)="updateDigitIdentifier('branchCode', $event, 3)" inputmode="numeric" autocomplete="off" maxlength="3" pattern="[0-9]{3}" placeholder="005" /></label>
         <label class="field"><span>Account type</span><select name="kozaType" [(ngModel)]="details['accountType']" (ngModelChange)="changed()"><option value="1">Ordinary</option><option value="2">Current</option></select></label>
-        <label class="field"><span>Account number</span><input name="kozaNumber" [(ngModel)]="details['accountNumber']" (ngModelChange)="changed()" inputmode="numeric" autocomplete="off" placeholder="1234567" /></label>
+        <label class="field"><span>Account number</span><input name="kozaNumber" type="text" [ngModel]="details['accountNumber']" (ngModelChange)="updateDigitIdentifier('accountNumber', $event, 7)" inputmode="numeric" autocomplete="off" maxlength="7" pattern="[0-9]{7}" placeholder="0123456" /></label>
         <label class="field field-wide"><span>Account holder name (Kana)</span><input name="kozaName" [(ngModel)]="details['accountNameKana']" (ngModelChange)="changed()" autocomplete="off" placeholder="タナカ アイコ" /></label>
       </div>
     }

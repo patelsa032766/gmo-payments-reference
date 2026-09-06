@@ -111,6 +111,18 @@ export class PaymentMethodDetailsComponent {
   }
 
   /**
+   * Bank and account numbers are digit strings, not quantities. Keeping them
+   * as strings preserves meaningful leading zeroes such as branch code 005.
+   * The numeric input mode still gives mobile customers the useful keypad.
+   */
+  protected updateDigitIdentifier(
+    field: 'branchCode' | 'accountNumber', value: unknown, maximumLength: number,
+  ): void {
+    this.details[field] = String(value ?? '').replace(/\D/g, '').slice(0, maximumLength);
+    this.changed();
+  }
+
+  /**
    * Emit only the fields owned by the selected payment product. The component
    * keeps one internal form model so every accordion can reuse the same compact
    * templates, but leaking that complete model would send empty card keys with

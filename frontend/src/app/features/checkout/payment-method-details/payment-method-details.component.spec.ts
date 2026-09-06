@@ -86,4 +86,35 @@ describe('PaymentMethodDetailsComponent', () => {
     expect(emitted.at(-1)).toEqual({ bankCode: '0001', accountNameKana: 'アイコ　タナカ' });
     fixture.destroy();
   });
+
+  it('preserves leading zeroes in Koza branch and account identifiers', async () => {
+    const fixture = TestBed.createComponent(PaymentMethodDetailsComponent);
+    const emitted: Record<string, unknown>[] = [];
+    fixture.componentInstance.detailsChange.subscribe(value => emitted.push(value));
+    fixture.componentRef.setInput('method', {
+      code: 'kozaFurikae', label: 'Koza Furikae', description: 'Mandate registration',
+      recurring: true, displayOrder: 1, citExecutionMode: 'AUTH',
+    } satisfies PaymentMethodOption);
+    fixture.componentRef.setInput('amountJpy', 10_000);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const branch = fixture.nativeElement.querySelector('input[name="kozaBranch"]') as HTMLInputElement;
+    const account = fixture.nativeElement.querySelector('input[name="kozaNumber"]') as HTMLInputElement;
+    branch.value = '005';
+    branch.dispatchEvent(new Event('input'));
+    account.value = '0123456';
+    account.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(branch.type).toBe('text');
+    expect(branch.value).toBe('005');
+    expect(account.value).toBe('0123456');
+    expect(emitted.at(-1)).toEqual({
+      bankCode: '0001', branchCode: '005', accountType: '1', accountNumber: '0123456',
+      accountNameKana: '',
+    });
+    fixture.destroy();
+  });
 });
