@@ -359,7 +359,7 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
         // the first-premium transfer are separate provider operations, so the
         // cash call receives its own compact, unique step reference while the
         // application number remains available in clientField1 for tracing.
-        String furikomiOrderId = providerStepOrderId(context, "F1");
+        String furikomiOrderId = firstPremiumFurikomiOrderId(context);
         var cashRequest = requests.cashCharge(facts(context, furikomiOrderId), "BANK_TRANSFER_GMO_AOZORA", "",
                 properties.getMerchant().getContactEmail(), properties.getMerchant().getContactPhone(), "");
         var cash = openApi.post("/cash/charge", cashRequest, true,
@@ -783,6 +783,29 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
         int maximumBaseLength = 27 - ending.length();
         if (base.length() > maximumBaseLength) base = base.substring(0, maximumBaseLength);
         return base + ending;
+    }
+
+    /**
+     * Gives the first-premium cash order its own Furikomi identity.
+     *
+     * <p>The surrounding customer journey starts from a Koza Furikae mandate,
+     * but this provider operation is not a Koza debit: it creates a virtual
+     * account for a separate bank transfer. Reusing the Koza prefix made GMO's
+     * transaction list and our retained API evidence materially misleading.
+     * The suffix is derived from the already-persisted registration transaction
+     * so retries remain deterministic while respecting GMO's 27-character
+     * OpenAPI order-ID limit.</p>
+     */
+    static String firstPremiumFurikomiOrderId(PaymentExecutionContext context) {
+        String prefix = "TXN-FURIKOMI-";
+        String ending = "-F1";
+        String transactionId = context.transactionId();
+        String uniquePart = transactionId.substring(transactionId.lastIndexOf('-') + 1);
+        int maximumUniqueLength = 27 - prefix.length() - ending.length();
+        if (uniquePart.length() > maximumUniqueLength) {
+            uniquePart = uniquePart.substring(uniquePart.length() - maximumUniqueLength);
+        }
+        return prefix + uniquePart + ending;
     }
 
     private static String canonicalState(String status) {

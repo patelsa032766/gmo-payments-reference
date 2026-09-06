@@ -39,9 +39,9 @@ export class CheckoutPage implements OnInit {
   private idempotencyKey = crypto.randomUUID();
 
   ngOnInit(): void {
-    this.loadMethods();
     const returnedTransaction = new URLSearchParams(window.location.search).get('paymentReturn');
-    if (returnedTransaction) this.restoreReturnedPayment(returnedTransaction);
+    this.loadBrowserConfiguration();
+    this.loadCheckout(returnedTransaction);
   }
 
   protected select(code: string): void {
@@ -84,8 +84,11 @@ export class CheckoutPage implements OnInit {
     this.confirmed.set(false);
     this.selectedCode.set(null);
     this.submission.set(null);
+    this.scenario.set(null);
     this.warning.set(null);
+    this.error.set(null);
     this.idempotencyKey = crypto.randomUUID();
+    this.loadCheckout(null);
   }
 
   protected selectedMethod(): PaymentMethodOption | undefined {
@@ -124,8 +127,7 @@ export class CheckoutPage implements OnInit {
     return '—';
   }
 
-  private loadMethods(): void {
-    this.loading.set(true);
+  private loadBrowserConfiguration(): void {
     this.api.getBrowserConfiguration().subscribe({
       next: configuration => {
         this.browserConfiguration.set(configuration);
@@ -137,20 +139,47 @@ export class CheckoutPage implements OnInit {
       },
       error: () => this.error.set('Payment security configuration could not be loaded.'),
     });
-    this.api.getCheckoutExperience().subscribe({next:settings=>{
-      const scenario=settings.customers.find(item=>item.applicationNumber===settings.selectedApplicationNumber)!;
-      this.scenario.set(scenario);this.amountJpy.set(scenario.amountJpy);
-      this.api.getOptions({channel:scenario.channel,amountJpy:scenario.amountJpy,monthly:scenario.paymentPlan==='MONTHLY',ekycVerified:scenario.ekycVerified,language:settings.checkoutLanguage}).subscribe({
+  }
+
+  /**
+   * Starts a fresh application for an ordinary page visit, but restores the
+   * already-created application after GMO redirects the browser back.
+   */
+  private loadCheckout(returnedTransaction: string | null): void {
+    this.loading.set(true);
+    this.api.getCheckoutExperience().subscribe({
+      next: settings => {
+        if (returnedTransaction) {
+          this.restoreReturnedPayment(returnedTransaction, settings.checkoutLanguage);
+          return;
+        }
+        this.api.createCheckoutApplication(settings.selectedApplicationNumber).subscribe({
+          next: scenario => this.activateScenario(scenario, settings.checkoutLanguage),
+          error: () => {
+            this.error.set('A new checkout application could not be created. Please try again.');
+            this.loading.set(false);
+          },
+        });
+      },
+      error:()=>{this.error.set('Checkout scenario could not be loaded.');this.loading.set(false);},
+    });
+  }
+
+  private activateScenario(scenario: CheckoutScenario, language: 'en'|'ja', ready?: () => void): void {
+    this.scenario.set(scenario);
+    this.amountJpy.set(scenario.amountJpy);
+    this.api.getOptions({channel:scenario.channel,amountJpy:scenario.amountJpy,monthly:scenario.paymentPlan==='MONTHLY',ekycVerified:scenario.ekycVerified,language}).subscribe({
         next: (response) => {
           this.methods.set(response.methods);
           this.configurationVersion.set(response.configurationVersion);
           this.loading.set(false);
+          ready?.();
         },
         error: () => {
           this.error.set('Payment methods could not be loaded. Please try again.');
           this.loading.set(false);
         },
-      });},error:()=>{this.error.set('Checkout scenario could not be loaded.');this.loading.set(false);}});
+      });
   }
 
   private follow(result: PaymentSubmission): void {
@@ -183,34 +212,46 @@ export class CheckoutPage implements OnInit {
     this.confirmed.set(true);
   }
 
-  private restoreReturnedPayment(transactionId: string): void {
+  private restoreReturnedPayment(transactionId: string, language: 'en'|'ja'): void {
     this.submitting.set(true);
     this.api.getPayment(transactionId).subscribe({
       next: result => {
-        this.submitting.set(false);
-        this.submission.set(result);
-        // Submission responses use the domain enum name while checkout options use
-        // the stable public API value. Normalize browser-return responses so the
-        // confirmation screen can recover the correct customer-facing label.
-        this.selectedCode.set(this.apiMethodCode(result.method));
-        if (result.requiresAttention && this.isCustomerSuccess(result.state)) {
-          this.warning.set('Your payment completed. We may contact you if the future payment method needs attention.');
-          this.confirmed.set(true);
-          return;
-        }
-        if (result.requiresAttention || ['FAILED', 'UNKNOWN', 'REGISTRATION_PENDING'].includes(result.state)) {
-          this.error.set(result.state === 'REGISTRATION_PENDING'
-            ? 'The bank registration is still pending. Please wait or contact support before trying again.'
-            : 'The payment was not completed. Please check the details or choose another method.');
-          return;
-        }
-        this.confirmed.set(true);
+        this.api.getCheckoutApplication(result.applicationNumber).subscribe({
+          next: scenario => this.activateScenario(scenario, language, () => this.applyReturnedPayment(result)),
+          error: () => {
+            this.submitting.set(false);
+            this.loading.set(false);
+            this.error.set('The application associated with this payment could not be restored. Please contact support.');
+          },
+        });
       },
       error: () => {
         this.submitting.set(false);
+        this.loading.set(false);
         this.error.set('The returned payment result could not be loaded. Please contact support.');
       },
     });
+  }
+
+  private applyReturnedPayment(result: PaymentSubmission): void {
+    this.submitting.set(false);
+    this.submission.set(result);
+    // Submission responses use the domain enum name while checkout options use
+    // the stable public API value. Normalize browser-return responses so the
+    // confirmation screen can recover the correct customer-facing label.
+    this.selectedCode.set(this.apiMethodCode(result.method));
+    if (result.requiresAttention && this.isCustomerSuccess(result.state)) {
+      this.warning.set('Your payment completed. We may contact you if the future payment method needs attention.');
+      this.confirmed.set(true);
+      return;
+    }
+    if (result.requiresAttention || ['FAILED', 'UNKNOWN', 'REGISTRATION_PENDING'].includes(result.state)) {
+      this.error.set(result.state === 'REGISTRATION_PENDING'
+        ? 'The bank registration is still pending. Please wait or contact support before trying again.'
+        : 'The payment was not completed. Please check the details or choose another method.');
+      return;
+    }
+    this.confirmed.set(true);
   }
 
   private apiMethodCode(value: string): string {

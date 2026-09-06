@@ -15,7 +15,7 @@ The approved customer/operator experience is preserved separately in `ui-mock/` 
 
 - Server-side method enablement, ordering, plan rules, eKYC rules, channels, amount thresholds, and localized labels.
 - Versioned configuration drafts with explicit publish/discard commands.
-- A SQLite-backed test checkout scenario: predefined customer/application, due-today amount, one-time/recurring payment schedule, and English/Japanese language survive navigation and restart.
+- A SQLite-backed test checkout template: predefined customer, due-today amount, one-time/recurring payment schedule, and English/Japanese language survive navigation and restart; every new checkout journey receives a new application number.
 - Card browser tokenization, versioned CIT auth/immediate-sale policy, reusable-card registration, and contextual capture.
 - PayPay recurring-account authorization followed by a configured first authorization or immediate sale, with contextual capture where required.
 - Real-time bank debit (`口座直結決済`) registration followed immediately by a debit.
@@ -137,11 +137,14 @@ The environment names are intentionally compatible with the companion Flask impl
 
 Card PAN/CVC never enters Spring Boot. Angular loads GMO's MP Token browser library from `GMO_MP_TOKEN_JS_URL`, receives a one-use token, and sends only that token and the cardholder name to the backend.
 
-The application number is a stable insurance-business reference and is sent in
-GMO client field 1. Every checkout or MIT attempt receives a separate local
-transaction ID, which is used as GMO's `orderId`. This prevents a customer retry
-from colliding with an earlier authorization while preserving end-to-end
-application correlation.
+The configured application is a reusable demo template, not the business
+application sent through checkout. Opening a new checkout journey materializes
+a new `APP-yyyyMMdd-NNN` record; that application number is stable for the
+journey and is sent in GMO client field 1. Each payment attempt also receives a
+separate local transaction ID used as GMO's `orderId`. The Koza registration
+order uses `TXN-KOZAFURIKAE-…`; its separately created first-premium virtual
+account uses `TXN-FURIKOMI-…-F1`, so provider records identify the actual payment
+rail without losing the application correlation.
 
 Switching from simulation to live mode does not rewrite historical transaction
 evidence. Prototype rows remain labelled as simulated in the transaction thread

@@ -21,7 +21,7 @@ With `scripts/run-backend.sh`, the file resolves to `backend/bootstrap/runtime/g
 | `configuration_release` | Immutable draft/published/retired versions | Configuration use case |
 | `payment_method_configuration` | Eligibility, order, thresholds, channels, EN/JA copy, and Card/PayPay CIT execution policy | Configuration use case |
 | `customer` | Local customer identity/reference | Checkout/MIT bootstrap |
-| `application_record` | Policy/application, amount, plan, customer, chosen configuration version | Checkout |
+| `application_record` | Reusable checkout templates and uniquely numbered journey applications, including amount, plan, customer, and chosen configuration version | Configuration/Checkout |
 | `checkout_experience_settings` | Singleton local-demo selection: application, language, and configuration-authentication flag | Configuration use case |
 | `payment_instrument` | Masked provider reference, lifecycle, optimistic version, Primary/Backup role | Successful registration and preference command |
 | `payment_transaction` | Root financial thread and current canonical projection | Checkout, MIT, batch orchestration |
@@ -71,13 +71,15 @@ Checkout first resolves the single `PUBLISHED` release, then reads method rows u
 Editing creates or replaces one `DRAFT` release. Publishing runs as a short transaction that retires the previous published row and publishes the draft. Transactions retain their configuration version for later explanation. `cit_execution_mode` stores `AUTH` or `CAPTURE`; checkout resolves it from the application’s pinned release and overwrites any browser-supplied value.
 
 The local test scenario is separate from immutable payment-method releases. Its
-singleton row selects one predefined `application_record`, checkout language,
-and whether operator mutations require the shared development token. Changing
-**Due today** or the `ONE_TIME`/`MONTHLY` schedule updates the selected
-application in the same short SQLite transaction. Checkout eligibility and the
-payment-command boundary both read that persisted schedule. The token flag is a
-single global local-testing switch; when enabled it covers configuration and
-financial operator actions.
+singleton row selects one predefined `application_record` marked
+`checkout_template=1`, the checkout language, and whether operator mutations
+require the shared development token. Changing **Due today** or the
+`ONE_TIME`/`MONTHLY` schedule updates only that template. Starting checkout
+clones the template into a new `APP-yyyyMMdd-NNN` row under the same short
+SQLite writer lock that allocates the daily sequence; journey rows have
+`checkout_template=0` and never appear in the configuration selector. The token
+flag is a single global local-testing switch; when enabled it covers
+configuration and financial operator actions.
 
 ## Payment command interaction
 

@@ -1,8 +1,10 @@
 package io.github.patelsa032766.gmopayments.web;
 
 import io.github.patelsa032766.gmopayments.application.service.BrowserPaymentConfigurationService;
+import io.github.patelsa032766.gmopayments.application.service.CheckoutExperienceService;
 import io.github.patelsa032766.gmopayments.application.service.CheckoutPaymentService;
 import io.github.patelsa032766.gmopayments.domain.BrowserPaymentConfiguration;
+import io.github.patelsa032766.gmopayments.domain.CheckoutScenario;
 import io.github.patelsa032766.gmopayments.domain.PaymentMethodCode;
 import io.github.patelsa032766.gmopayments.domain.PaymentSubmissionResult;
 import jakarta.validation.Valid;
@@ -24,16 +26,31 @@ import java.util.Map;
 public class CheckoutPaymentController {
     private final CheckoutPaymentService payments;
     private final BrowserPaymentConfigurationService browserConfiguration;
+    private final CheckoutExperienceService checkoutExperience;
 
     public CheckoutPaymentController(CheckoutPaymentService payments,
-                                     BrowserPaymentConfigurationService browserConfiguration) {
+                                     BrowserPaymentConfigurationService browserConfiguration,
+                                     CheckoutExperienceService checkoutExperience) {
         this.payments = payments;
         this.browserConfiguration = browserConfiguration;
+        this.checkoutExperience = checkoutExperience;
     }
 
     @GetMapping("/browser-configuration")
     BrowserPaymentConfiguration browserConfiguration() {
         return browserConfiguration.get();
+    }
+
+    /** Creates one uniquely numbered checkout application from a configured demo scenario. */
+    @PostMapping("/applications")
+    CheckoutScenario createApplication(@Valid @RequestBody CreateApplicationRequest request) {
+        return checkoutExperience.createApplication(request.templateApplicationNumber());
+    }
+
+    /** Restores the exact application associated with a provider browser return. */
+    @GetMapping("/applications/{applicationNumber}")
+    CheckoutScenario application(@PathVariable String applicationNumber) {
+        return checkoutExperience.findApplication(applicationNumber);
     }
 
     @PostMapping("/applications/{applicationNumber}/payments")
@@ -60,4 +77,5 @@ public class CheckoutPaymentController {
     }
 
     public record PaymentRequest(@NotBlank String method, @NotNull Map<String, Object> details) {}
+    public record CreateApplicationRequest(@NotBlank String templateApplicationNumber) {}
 }

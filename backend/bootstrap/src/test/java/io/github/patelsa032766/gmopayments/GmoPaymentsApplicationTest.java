@@ -86,6 +86,26 @@ class GmoPaymentsApplicationTest {
     }
 
     @Test
+    void everyCheckoutJourneyCreatesANewApplicationFromTheSelectedTemplate() {
+        var settings = checkoutExperience.get();
+        var template = settings.selected();
+
+        var first = checkoutExperience.createApplication(settings.selectedApplicationNumber());
+        var second = checkoutExperience.createApplication(settings.selectedApplicationNumber());
+
+        assertThat(first.applicationNumber()).matches("APP-[0-9]{8}-[0-9]{3,}");
+        assertThat(second.applicationNumber()).matches("APP-[0-9]{8}-[0-9]{3,}");
+        assertThat(second.applicationNumber()).isNotEqualTo(first.applicationNumber());
+        assertThat(first.customerCode()).isEqualTo(template.customerCode());
+        assertThat(first.amountJpy()).isEqualTo(template.amountJpy());
+        assertThat(first.paymentPlan()).isEqualTo(template.paymentPlan());
+        assertThat(checkoutExperience.findApplication(first.applicationNumber())).isEqualTo(first);
+        assertThat(checkoutExperience.get().customers())
+                .extracting("applicationNumber")
+                .doesNotContain(first.applicationNumber(), second.applicationNumber());
+    }
+
+    @Test
     void simulatedCheckoutPersistsOneThreadAndReplaysTheIdempotentResult() {
         String idempotencyKey = "test-" + UUID.randomUUID();
 

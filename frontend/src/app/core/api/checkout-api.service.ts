@@ -63,6 +63,13 @@ export class CheckoutApiService {
   getCheckoutExperience(): Observable<CheckoutExperienceSettings> {
     return this.http.get<CheckoutExperienceSettings>('/api/v1/configuration/experience');
   }
+  createCheckoutApplication(templateApplicationNumber:string):Observable<CheckoutScenario>{
+    return this.http.post<CheckoutScenario>('/api/v1/checkout/applications',{templateApplicationNumber});
+  }
+  getCheckoutApplication(applicationNumber:string):Observable<CheckoutScenario>{
+    return this.http.get<CheckoutScenario>(
+      `/api/v1/checkout/applications/${encodeURIComponent(applicationNumber)}`);
+  }
   saveCheckoutExperience(applicationNumber:string,amountJpy:number,paymentPlan:PaymentPlan,
                          operatorTokenRequired:boolean,checkoutLanguage:CheckoutLanguage,operatorToken:string):Observable<CheckoutExperienceSettings>{
     return this.http.put<CheckoutExperienceSettings>('/api/v1/configuration/experience',

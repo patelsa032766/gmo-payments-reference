@@ -27,6 +27,22 @@ GET /api/v1/checkout/options?channel=PA&amountJpy=10000&monthly=true&ekycVerifie
 
 The backend returns only eligible methods, already ordered. Checkout must not duplicate policy logic. The payment command repeats the enabled, amount, plan, channel, and eKYC checks against the same published release, so directly constructing a request cannot bypass the options policy.
 
+## Start a checkout application
+
+```http
+POST /api/v1/checkout/applications
+Content-Type: application/json
+
+{ "templateApplicationNumber": "APP-20260829-022" }
+```
+
+Configuration selects a reusable synthetic template. This command copies its
+customer, amount, plan, channel, and policy into a new persisted application
+whose number follows `APP-yyyyMMdd-NNN`. It must be called once when a new
+checkout journey begins—not again for each payment attempt or provider return.
+`GET /api/v1/checkout/applications/{applicationNumber}` restores the exact
+application after a browser handoff.
+
 ## Browser payment configuration
 
 ```http
@@ -38,7 +54,7 @@ Returns safe browser values such as simulation/live mode, MP Token script URL, a
 ## Submit a checkout payment
 
 ```http
-POST /api/v1/checkout/applications/APP-20260821-001/payments
+POST /api/v1/checkout/applications/APP-20260906-001/payments
 Idempotency-Key: 4a2910e8-40fc-41aa-a913-4be2d9383ad1
 Content-Type: application/json
 
@@ -83,7 +99,7 @@ POST   /api/v1/configuration/draft/publish
 DELETE /api/v1/configuration/draft
 ```
 
-The experience resource returns predefined customer/application scenarios and persists the selected application, due-today amount, payment plan (`ONE_TIME` or `MONTHLY`), checkout language, and `operatorTokenRequired`. The selected plan is not decorative: it is passed into checkout eligibility and revalidated when payment submission is reserved. `MONTHLY` exposes reusable methods and the monthly-only combined Koza Furikae registration plus first-premium Furikomi journey. `ONE_TIME` excludes that mandate-registration product and can expose ordinary Furikomi instead. When the saved operator flag is enabled, configuration changes, capture, MIT payments, payment-order changes, Koza batches, and manual SFTP reconciliation all require `X-Operator-Token`.
+The experience resource returns predefined customer/application templates and persists the selected template, due-today amount, payment plan (`ONE_TIME` or `MONTHLY`), checkout language, and `operatorTokenRequired`. The selected plan is not decorative: it is copied to each new application, passed into checkout eligibility, and revalidated when payment submission is reserved. `MONTHLY` exposes reusable methods and the monthly-only combined Koza Furikae registration plus first-premium Furikomi journey. `ONE_TIME` excludes that mandate-registration product and can expose ordinary Furikomi instead. When the saved operator flag is enabled, configuration changes, capture, MIT payments, payment-order changes, Koza batches, and manual SFTP reconciliation all require `X-Operator-Token`.
 
 Example experience update:
 

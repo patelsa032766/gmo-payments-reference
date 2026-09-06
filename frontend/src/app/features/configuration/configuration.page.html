@@ -46,7 +46,7 @@
         <div class="card-heading">
           <div>
             <h2>Test checkout scenario</h2>
-            <p>This persisted selection supplies the customer and application shown in Checkout.</p>
+            <p>This persisted template supplies the customer and defaults. Checkout creates a new application number for every journey.</p>
           </div>
         </div>
         <div class="field-grid">
@@ -88,7 +88,7 @@
         @if (selectedCustomer(); as customer) {
           <dl class="scenario-summary">
             <div>
-              <dt>Application</dt>
+              <dt>Template application</dt>
               <dd>{{ customer.applicationNumber }}</dd>
             </div>
             <div>

@@ -135,10 +135,11 @@ class GmoRequestFactoryTest {
                 PaymentMethodCode.KOZA_FURIKAE_SELECT, "ANNUITY", "CIT", "REGISTER",
                 20_000, 1, "corr-1", PaymentExecutionMode.CAPTURE, "MONTHLY");
 
-        String providerOrderId = GmoPaymentGatewayAdapter.providerStepOrderId(context, "F1");
+        String providerOrderId = GmoPaymentGatewayAdapter.firstPremiumFurikomiOrderId(context);
 
         assertThat(providerOrderId)
                 .hasSizeLessThanOrEqualTo(27)
+                .startsWith("TXN-FURIKOMI-")
                 .endsWith("-F1")
                 .matches("[0-9A-Za-z-]+");
     }

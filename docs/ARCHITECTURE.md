@@ -154,12 +154,16 @@ The journey is selected by business intent, not by asking the customer to compos
 
 Payment-method enablement, ordering, thresholds, distribution channels, eKYC rules, language, webhook enablement, SFTP enablement, retry policies, and Koza calendars are versioned configuration. Administrators edit a draft and explicitly publish an immutable release.
 
-The predefined-customer selector, due-today amount, `ONE_TIME`/`MONTHLY` payment plan, and checkout language form a
-separate local demonstration scenario stored in `checkout_experience_settings`
-and the selected `application_record`. Its optional authentication flag applies
-to configuration and financial operator mutations as one global local-testing
-policy. Production deployments must replace this convenience control with real
-identity, authorization, and separation of duties.
+The predefined-customer selector, due-today amount, `ONE_TIME`/`MONTHLY` payment
+plan, and checkout language form a separate local demonstration template stored
+in `checkout_experience_settings` and an `application_record` marked as a
+checkout template. At the start of each journey the persistence adapter creates
+a uniquely numbered business application from that template. Browser returns
+restore the transaction's existing application rather than creating another.
+The optional authentication flag applies to configuration and financial
+operator mutations as one global local-testing policy. Production deployments
+must replace this convenience control with real identity, authorization, and
+separation of duties.
 
 Environment-specific public URLs, the local KanjiAI/Cloudflare route, credentials, and key paths are deployment configuration. They are not runtime business configuration and must not be exported with a configuration release.
 
