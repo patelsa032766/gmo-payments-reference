@@ -112,8 +112,37 @@ describe('PaymentMethodDetailsComponent', () => {
     expect(branch.value).toBe('005');
     expect(account.value).toBe('0123456');
     expect(emitted.at(-1)).toEqual({
-      bankCode: '0001', branchCode: '005', accountType: '1', accountNumber: '0123456',
-      accountNameKana: '',
+      bankCode: '0005', branchCode: '005', accountType: '1', accountNumber: '0123456',
+      accountNameKana: 'コウザメイギ',
+    });
+    fixture.destroy();
+  });
+
+  it('prefills GMO documented format-valid Koza Furikae sandbox data', async () => {
+    const fixture = TestBed.createComponent(PaymentMethodDetailsComponent);
+    const emitted: Record<string, unknown>[] = [];
+    fixture.componentInstance.detailsChange.subscribe(value => emitted.push(value));
+    fixture.componentRef.setInput('method', {
+      code: 'kozaFurikae', label: 'Koza Furikae', description: 'Mandate registration',
+      recurring: true, displayOrder: 1, citExecutionMode: 'AUTH',
+    } satisfies PaymentMethodOption);
+    fixture.componentRef.setInput('amountJpy', 10_000);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect((fixture.nativeElement.querySelector('select[name="kozaBank"]') as HTMLSelectElement).value)
+      .toBe('0005');
+    expect((fixture.nativeElement.querySelector('input[name="kozaBranch"]') as HTMLInputElement).value)
+      .toBe('001');
+    expect((fixture.nativeElement.querySelector('select[name="kozaType"]') as HTMLSelectElement).value)
+      .toBe('1');
+    expect((fixture.nativeElement.querySelector('input[name="kozaNumber"]') as HTMLInputElement).value)
+      .toBe('1234567');
+    expect((fixture.nativeElement.querySelector('input[name="kozaName"]') as HTMLInputElement).value)
+      .toBe('コウザメイギ');
+    expect(emitted.at(-1)).toEqual({
+      bankCode: '0005', branchCode: '001', accountType: '1', accountNumber: '1234567',
+      accountNameKana: 'コウザメイギ',
     });
     fixture.destroy();
   });

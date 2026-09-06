@@ -49,6 +49,61 @@ runtime database is ignored by Git.
 | Koza monthly batch | Asynchronous scheduled debit only. | Not applicable. | The batch and one transaction per item were created. Entry was accepted, then Exec was conclusively rejected because the preloaded `GMO-MEMBER-10046` fixture is not a registered sandbox mandate. Example `TXN-KOZA-51B0DF5E47B1`. Both Entry and Exec exchanges are retained. Complete the real Koza browser registration before expecting `REQSUCCESS` and later `PAYSUCCESS`/`PAYFAIL`. |
 | Kombini / Pay-easy / Furikomi | Not supported as saved-method MIT. | Not applicable. | These are customer instruction flows, not reusable payment instruments. |
 
+## Koza Furikae registration test data
+
+The checkout prefills the following **synthetic, format-valid** example from
+GMO's public `BankAccountEntry.idPass` documentation:
+
+| Field | Prefilled value | GMO rule |
+| --- | --- | --- |
+| Bank | Mitsubishi UFJ Bank (`0005`) | Four-digit bank code; this bank requires branch, type, number, and Kana name. |
+| Branch code | `001` | Exactly three half-width digits. Preserve leading zeroes. |
+| Account type | `1` (Ordinary) | `1` = ordinary; `2` = current. |
+| Account number | `1234567` | Exactly seven half-width digits. Preserve leading zeroes. |
+| Account holder Kana | `コウザメイギ` | Full-width English/Kana, up to 30 characters. |
+
+This is a documented request example, not a universal magic account. It follows
+GMO's published field shape and initial parameter rules, but the bank-hosted
+sandbox and the merchant's contracted test setup determine whether registration
+ultimately succeeds. Obtain any
+bank-simulator-specific success account from GMO or the merchant's account
+representative. Never ship these defaults as production customer data.
+
+Additional format-valid permutations are useful for UI and request-shape tests,
+but are not published success accounts:
+
+| Bank | Branch | Type | Account | Kana name | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| Mizuho (`0001`) | `005` | `1` | `0123456` | `タナカ　マコト` | Exercises leading zeroes in both identifiers. |
+| Sumitomo Mitsui (`0009`) | `001` | `2` | `7654321` | `テスト　タロウ` | Exercises the documented current-account type. |
+
+Useful negative cases are intentionally **not** prefilled. They can be entered
+manually to verify GMO validation and the application's error presentation:
+
+| Case | Example change | Expected result |
+| --- | --- | --- |
+| Missing branch | Clear `001` | Invalid request; GMO/bank may return a missing-branch error such as `K01010462`. |
+| Invalid branch width | `01` or `0001` | Must be exactly three digits; GMO/bank may return `K01020462`. |
+| Invalid account type | Any value other than `1` or `2` | The checkout select prevents this; a direct request may return `K01020463`. |
+| Missing account number | Clear `1234567` | Invalid request; GMO documents `M01071001`. |
+| Invalid account number | `123456`, `12345678`, or `12A4567` | Must be exactly seven digits; documented format/bank errors include `M01071005`, `M01071006`, and `K01020464`. |
+| Missing account name | Clear `コウザメイギ` | Invalid request; GMO documents `M01075001`. |
+| Invalid account name | `タナカ🙂マコト` | Emoji is outside the documented full-width English/Kana set; GMO documents `M01075013` and bank error `K01020465`. |
+| Overlong account name | More than 30 full-width characters | GMO documents `M01075005`. |
+| Plausible but mismatched account | Keep a valid shape but use details the bank simulator does not recognize | Provider/bank rejection rather than a format error; GMO documents `M01332002` and bank-specific account-information errors. |
+| Customer cancels | Cancel on the hosted bank page | Bank-specific cancellation result; for example Mizuho documents `K01020919`. |
+
+Do not assert one exact provider code for every bank. GMO's common validation
+codes and the bank-specific result codes overlap, and the selected financial
+institution controls the hosted-registration outcome.
+
+Official references:
+
+- [BankAccountEntry.idPass request specification](https://docs.gmo-pg.com/mulpay/apis/protocol-type/idpass/bank-account-entry)
+- [Supported bank and required-field matrix](https://dev.docs.gmo-pg.com/mulpay/docs/payment-method/account/accounttrans/entry/online/banklist)
+- [Koza Furikae error-code reference](https://docs.gmo-pg.com/mulpay/docs/payment-method/account/accounttrans/entry/online/errorcode-protocol)
+- [Test-environment limitations](https://docs.gmo-pg.com/mulpay/docs/developer-support/test-environment/overview)
+
 ## Webhook and callback reachability
 
 The local Cloudflare ingress was checked at the exact public OpenAPI webhook

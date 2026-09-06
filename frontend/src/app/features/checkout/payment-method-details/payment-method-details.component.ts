@@ -55,6 +55,24 @@ const BANK_DIRECT_ACCOUNT_HOLDER_NAMES: Readonly<Record<string, string>> = {
 };
 
 /**
+ * Format-valid Koza Furikae values from GMO's public BankAccountEntry example.
+ *
+ * These values deliberately represent synthetic sandbox data. GMO documents
+ * the combination as an example of an accepted request shape; the contracted
+ * bank simulator still decides the eventual registration result. Keeping the
+ * fixture next to the form makes it obvious that a production deployment must
+ * replace it with actual customer input rather than treating it as account
+ * master data.
+ */
+const KOZA_FURIKAE_SANDBOX_EXAMPLE: Readonly<Record<string, string>> = {
+  bankCode: '0005',
+  branchCode: '001',
+  accountType: '1',
+  accountNumber: '1234567',
+  accountNameKana: 'コウザメイギ',
+};
+
+/**
  * Provider-specific customer details for every catalog method, including methods
  * currently hidden by eligibility. Keeping this exhaustive means a configuration
  * enablement change cannot expose an empty accordion.
@@ -86,6 +104,7 @@ export class PaymentMethodDetailsComponent {
     badge: 'Payment',
     note: 'Continue to complete this payment method.',
   });
+  private kozaSandboxExampleApplied = false;
 
   constructor() {
     // Emit defaults each time Angular creates a newly selected accordion body;
@@ -95,6 +114,10 @@ export class PaymentMethodDetailsComponent {
       const customerCode = this.customerCode();
       if (method.code === 'bankDirect' && !String(this.details['accountNameKana'] ?? '').trim()) {
         this.details['accountNameKana'] = BANK_DIRECT_ACCOUNT_HOLDER_NAMES[customerCode] ?? '';
+      }
+      if (method.code === 'kozaFurikae' && !this.kozaSandboxExampleApplied) {
+        Object.assign(this.details, KOZA_FURIKAE_SANDBOX_EXAMPLE);
+        this.kozaSandboxExampleApplied = true;
       }
       queueMicrotask(() => this.changed());
     });

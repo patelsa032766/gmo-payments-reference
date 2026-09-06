@@ -38,6 +38,7 @@
         <label class="field"><span>Account number</span><input name="kozaNumber" type="text" [ngModel]="details['accountNumber']" (ngModelChange)="updateDigitIdentifier('accountNumber', $event, 7)" inputmode="numeric" autocomplete="off" maxlength="7" pattern="[0-9]{7}" placeholder="0123456" /></label>
         <label class="field field-wide"><span>Account holder name (Kana)</span><input name="kozaName" [(ngModel)]="details['accountNameKana']" (ngModelChange)="changed()" autocomplete="off" placeholder="タナカ アイコ" /></label>
       </div>
+      <p class="integration-note">Synthetic sandbox example prefilled from GMO's published BankAccountEntry request. The selected bank simulator makes the final registration decision.</p>
     }
     @case ('kombini') {
       <div class="compact-fields"><label class="field field-wide"><span>Convenience store</span><select name="store" [(ngModel)]="details['konbiniCode']" (ngModelChange)="changed()"><option value="LAWSON">Lawson</option><option value="FAMILY_MART">FamilyMart</option><option value="MINISTOP">Ministop</option></select></label></div>
