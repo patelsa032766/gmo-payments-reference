@@ -110,6 +110,9 @@ the GMO adapter performs the retry-safe `/order/inquiry` read. The projection is
 `PARTIALLY_PAID` while cumulative deposits are below the requested Furikomi
 amount and `PAID` only when the requested amount is met. The callback plus the
 sanitized authoritative inquiry are appended as immutable evidence.
+Deduplication is based on this enriched evidence rather than the terse envelope
+alone: successive partial deposits can reuse the same `accessId` and event name,
+whereas a true redelivery resolves to the same cumulative amount and hash.
 
 Browser returns are navigation signals, not conclusive financial evidence. If the result is missing or ambiguous, the UI displays a pending state while the backend performs inquiry.
 

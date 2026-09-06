@@ -188,6 +188,12 @@ header. Never put either secret in a URL. Browser-return endpoints use provider
 references and server-side inquiry/integrity validation instead of treating the
 browser as financial authority.
 
+GMO may send the same terse `CASH_PAID` envelope after more than one partial
+deposit. Consequently, inbox idempotency includes the sanitized authoritative
+inquiry result, not just the callback envelope. A change from cumulative JPY
+5,000 to JPY 20,000 is persisted as a new lifecycle event, while another
+delivery at the unchanged JPY 20,000 total is recognized as a true duplicate.
+
 GMO idPass is a legacy Windows-31J protocol. The Angular checkout sends normal
 UTF-8 JSON to Spring; the GMO adapter percent-encodes the bank-account Kana
 fields as Windows-31J. Bank Direct and Koza browser returns are read as raw form

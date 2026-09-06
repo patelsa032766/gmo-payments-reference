@@ -250,7 +250,10 @@ persisted provider order before validating the CSRF token. When a generic
 notification is deliberately not treated as proof that the requested total was
 paid: the backend performs a retry-safe `/order/inquiry`, persists GMO's
 cumulative deposit amount, and maps the thread to `PARTIALLY_PAID` or `PAID`.
-Duplicate deliveries remain idempotent.
+The durable fingerprint includes that sanitized inquiry result because GMO may
+reuse an identical `CASH_PAID` envelope for later partial deposits. A changed
+cumulative amount is therefore a new state-bearing message; a retry with the
+same authoritative cumulative amount remains idempotent.
 
 Legacy protocol notification:
 

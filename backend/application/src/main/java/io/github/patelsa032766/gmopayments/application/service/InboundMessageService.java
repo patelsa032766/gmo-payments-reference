@@ -6,11 +6,17 @@ import io.github.patelsa032766.gmopayments.application.port.InboundPaymentMessag
 import io.github.patelsa032766.gmopayments.domain.InboundMessageResult;
 import io.github.patelsa032766.gmopayments.domain.InboundPaymentMessage;
 
+import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Normalizes the two GMO notification families into one durable command. */
@@ -52,10 +58,20 @@ public final class InboundMessageService {
         Map<String, Object> canonical = new LinkedHashMap<>();
         sanitized.entrySet().stream().sorted(Map.Entry.comparingByKey())
                 .forEach(entry -> canonical.put(entry.getKey(), entry.getValue()));
-        String payloadHash = sha256(sourceFamily + "\n" + canonical);
+        // The initial hash is only provisional. Some terse GMO notifications
+        // (notably CASH_PAID) contain no amount or unique delivery identifier.
+        // The provider adapter enriches those messages with an authoritative
+        // inquiry before we calculate the durable inbox fingerprint below.
+        String payloadHash = sha256(sourceFamily + "\n" + fingerprint(canonical));
         InboundPaymentMessage received = new InboundPaymentMessage(sourceFamily, externalKey, payloadHash,
                 orderId, accessId, status, canonical, Instant.now());
-        return repository.receive(resolver.resolve(received), configuration.webhooksEnabled());
+        InboundPaymentMessage resolved = resolver.resolve(received);
+        String resolvedHash = sha256(sourceFamily + "\n" + fingerprint(resolved.sanitizedPayload()));
+        InboundPaymentMessage durable = new InboundPaymentMessage(resolved.sourceFamily(),
+                resolved.externalEventKey(), resolvedHash, resolved.providerOrderId(),
+                resolved.providerAccessId(), resolved.providerStatus(), resolved.sanitizedPayload(),
+                resolved.receivedAt());
+        return repository.receive(durable, configuration.webhooksEnabled());
     }
 
     private static String firstText(Map<String, ?> payload, String... keys) {
@@ -79,5 +95,41 @@ public final class InboundMessageService {
         } catch (Exception exception) {
             throw new IllegalStateException("SHA-256 is unavailable", exception);
         }
+    }
+
+    /**
+     * Produces an order-stable representation of a sanitized JSON-like value.
+     *
+     * <p>Map iteration order is not part of JSON semantics, so keys are sorted
+     * recursively. Length prefixes keep adjacent values unambiguous without
+     * adding a JSON library to the provider-independent application module.</p>
+     */
+    private static String fingerprint(Object value) {
+        if (value == null) return "N";
+        if (value instanceof Map<?, ?> map) {
+            List<Map.Entry<String, Object>> entries = new ArrayList<>();
+            map.forEach((key, entryValue) -> entries.add(
+                    new AbstractMap.SimpleImmutableEntry<>(String.valueOf(key), entryValue)));
+            entries.sort(Comparator.comparing(Map.Entry::getKey));
+            StringBuilder result = new StringBuilder("M").append(entries.size()).append(':');
+            entries.forEach(entry -> result.append(sized(entry.getKey())).append(fingerprint(entry.getValue())));
+            return result.toString();
+        }
+        if (value instanceof Collection<?> collection) {
+            StringBuilder result = new StringBuilder("L").append(collection.size()).append(':');
+            collection.forEach(item -> result.append(fingerprint(item)));
+            return result.toString();
+        }
+        if (value.getClass().isArray()) {
+            int length = Array.getLength(value);
+            StringBuilder result = new StringBuilder("A").append(length).append(':');
+            for (int index = 0; index < length; index++) result.append(fingerprint(Array.get(value, index)));
+            return result.toString();
+        }
+        return "V" + sized(String.valueOf(value));
+    }
+
+    private static String sized(String value) {
+        return value.length() + ":" + value;
     }
 }

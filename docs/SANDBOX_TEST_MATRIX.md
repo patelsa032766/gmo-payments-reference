@@ -151,6 +151,11 @@ URL and edge configuration.
     Generic form decoding previously converted them to spaces, causing the
     subsequent `BankAccountStart` browser POST to fail with `M01074090` even
     though the bank-account fields were valid.
+15. Partial Furikomi deposits no longer collide in the webhook inbox. GMO reused
+    the same `CASH_PAID` envelope for provider order
+    `TXN-FURIKOMI-42B61639267-F1`; inquiry-backed fingerprints retained both the
+    JPY 5,000 partial state and the later JPY 20,000 cumulative paid state, while
+    an unchanged replay was still deduplicated.
 
 ## Re-running safely
 
