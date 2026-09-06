@@ -83,10 +83,10 @@ manually to verify GMO validation and the application's error presentation:
 | Case | Example change | Expected result |
 | --- | --- | --- |
 | Missing branch | Clear `001` | Invalid request; GMO/bank may return a missing-branch error such as `K01010462`. |
-| Invalid branch width | `01` or `0001` | Must be exactly three digits; GMO/bank may return `K01020462`. |
+| Invalid branch width | `01` | Must be exactly three digits; GMO/bank may return `K01020462`. The UI deliberately truncates input longer than three digits. |
 | Invalid account type | Any value other than `1` or `2` | The checkout select prevents this; a direct request may return `K01020463`. |
 | Missing account number | Clear `1234567` | Invalid request; GMO documents `M01071001`. |
-| Invalid account number | `123456`, `12345678`, or `12A4567` | Must be exactly seven digits; documented format/bank errors include `M01071005`, `M01071006`, and `K01020464`. |
+| Invalid account number | `123456` or `12A4567` | Must be exactly seven digits; documented format/bank errors include `M01071005`, `M01071006`, and `K01020464`. Non-digits are stripped and input longer than seven digits is truncated by the UI. |
 | Missing account name | Clear `コウザメイギ` | Invalid request; GMO documents `M01075001`. |
 | Invalid account name | `タナカ🙂マコト` | Emoji is outside the documented full-width English/Kana set; GMO documents `M01075013` and bank error `K01020465`. |
 | Overlong account name | More than 30 full-width characters | GMO documents `M01075005`. |
