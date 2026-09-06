@@ -1,5 +1,8 @@
 package io.github.patelsa032766.gmopayments.gmo;
 
+import io.github.patelsa032766.gmopayments.domain.PaymentExecutionContext;
+import io.github.patelsa032766.gmopayments.domain.PaymentExecutionMode;
+import io.github.patelsa032766.gmopayments.domain.PaymentMethodCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -122,5 +125,21 @@ class GmoRequestFactoryTest {
 
         assertThat(payload.toString()).contains("nameKana=タナカアイコ")
                 .doesNotContain("タナカ　アイコ");
+    }
+
+    @Test
+    void kozaFirstPremiumGetsAProviderSafeStepOrderId() {
+        var context = new PaymentExecutionContext(
+                "TXN-KOZAFURIKAE-5FB3E486626A", "APP-20260829-022", "CUST-10044",
+                "Yuina Nakamura", "A. Suzuki", "Example Insurance",
+                PaymentMethodCode.KOZA_FURIKAE_SELECT, "ANNUITY", "CIT", "REGISTER",
+                20_000, 1, "corr-1", PaymentExecutionMode.CAPTURE, "MONTHLY");
+
+        String providerOrderId = GmoPaymentGatewayAdapter.providerStepOrderId(context, "F1");
+
+        assertThat(providerOrderId)
+                .hasSizeLessThanOrEqualTo(27)
+                .endsWith("-F1")
+                .matches("[0-9A-Za-z-]+");
     }
 }

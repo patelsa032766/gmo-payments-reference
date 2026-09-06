@@ -354,7 +354,13 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
         // The recurring mandate is now confirmed. The first premium is a
         // distinct Furikomi transaction, issued immediately in the same user
         // journey as required by the checkout design.
-        var cashRequest = requests.cashCharge(facts(context), "BANK_TRANSFER_GMO_AOZORA", "",
+        // The local Koza transaction ID is deliberately descriptive and can
+        // exceed GMO OpenAPI's 27-character orderId limit. Registration and
+        // the first-premium transfer are separate provider operations, so the
+        // cash call receives its own compact, unique step reference while the
+        // application number remains available in clientField1 for tracing.
+        String furikomiOrderId = providerStepOrderId(context, "F1");
+        var cashRequest = requests.cashCharge(facts(context, furikomiOrderId), "BANK_TRANSFER_GMO_AOZORA", "",
                 properties.getMerchant().getContactEmail(), properties.getMerchant().getContactPhone(), "");
         var cash = openApi.post("/cash/charge", cashRequest, true,
                 providerIdempotency(context, "koza-first-furikomi"));
@@ -363,7 +369,7 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
         exchanges.add(evidence("OPENAPI", "CashCharge", "/cash/charge", cashRequest, cash,
                 "INSTRUCTIONS_ISSUED"));
         var outcome = new PaymentGatewayResult("MANDATE_REGISTERED_TRANSFER_DUE",
-                registrationResult + "/" + cashStatus, context.applicationNumber(),
+                registrationResult + "/" + cashStatus, furikomiOrderId,
                 accessId(cash.rawPayload()), "KOZA_REGISTERED_FURIKOMI_ISSUED",
                 "Koza Furikae registered and first-premium transfer instructions issued", false,
                 PaymentNextAction.none(), instructions, "OPENAPI", "CashCharge", "/cash/charge",
@@ -756,7 +762,7 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
                 context.initiationType());
     }
 
-    private static String providerStepOrderId(PaymentExecutionContext context, String suffix) {
+    static String providerStepOrderId(PaymentExecutionContext context, String suffix) {
         String ending = "-" + suffix;
         String base = context.transactionId();
         int maximumBaseLength = 27 - ending.length();
