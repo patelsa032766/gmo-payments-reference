@@ -147,6 +147,10 @@ URL and edge configuration.
     number in Angular because GMO's hosted registration page collects those
     fields. The operations view exposes Search, amount-bearing Entry, and Exec
     as an ordered, selectable call sequence under the same lifecycle event.
+14. Koza `BankAccountEntry` check tokens preserve GMO's literal `+` characters.
+    Generic form decoding previously converted them to spaces, causing the
+    subsequent `BankAccountStart` browser POST to fail with `M01074090` even
+    though the bank-account fields were valid.
 
 ## Re-running safely
 

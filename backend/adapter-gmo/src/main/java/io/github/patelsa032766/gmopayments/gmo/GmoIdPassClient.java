@@ -25,6 +25,10 @@ import java.util.Map;
 @Component
 public class GmoIdPassClient {
     private static final Charset WINDOWS_31J = Charset.forName("Windows-31J");
+    private static final MediaType WINDOWS_31J_FORM =
+            MediaType.parseMediaType("application/x-www-form-urlencoded; charset=windows-31j");
+    private static final MediaType SHIFT_JIS_TEXT =
+            MediaType.parseMediaType("text/plain; charset=Shift_JIS");
     private final GmoProperties properties;
     private final GmoSafeReadRetryExecutor retries;
     private final RestClient client;
@@ -46,11 +50,12 @@ public class GmoIdPassClient {
         try {
             byte[] body = encode(fields).getBytes(StandardCharsets.US_ASCII);
             return client.post().uri("/" + operation.replaceFirst("^/", ""))
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .contentType(WINDOWS_31J_FORM)
+                    .accept(SHIFT_JIS_TEXT)
                     .body(body)
                     .exchange((request, response) -> {
                         int status = response.getStatusCode().value();
-                        Map<String, Object> parsed = parse(response.getBody().readAllBytes());
+                        Map<String, Object> parsed = parseResponse(response.getBody().readAllBytes());
                         if (status < 200 || status >= 300) {
                             boolean transientResponse = status == 429 || status == 502
                                     || status == 503 || status == 504;
@@ -102,14 +107,28 @@ public class GmoIdPassClient {
         return URLEncoder.encode(value == null ? "" : value, WINDOWS_31J);
     }
 
-    private static Map<String, Object> parse(byte[] response) {
+    /**
+     * Parse GMO's idPass response without corrupting a Koza handoff token.
+     *
+     * <p>Most idPass responses resemble an application/x-www-form-urlencoded
+     * body, where a literal plus normally means a space. BankAccountEntry is a
+     * provider-specific exception: GMO's own successful example returns an
+     * unescaped Base64-like {@code Token} containing literal plus characters.
+     * URLDecoder would silently turn those characters into spaces and
+     * BankAccountStart would then reject the browser handoff with M01074090.
+     * Preserve plus only for the Token field; all other response fields retain
+     * ordinary form-decoding semantics.</p>
+     */
+    static Map<String, Object> parseResponse(byte[] response) {
         if (response == null || response.length == 0) return Map.of();
         String text = new String(response, WINDOWS_31J).trim();
         var parsed = new LinkedHashMap<String, Object>();
         for (String pair : text.split("&")) {
             String[] parts = pair.split("=", 2);
-            parsed.put(URLDecoder.decode(parts[0], WINDOWS_31J),
-                    URLDecoder.decode(parts.length == 2 ? parts[1] : "", WINDOWS_31J));
+            String key = URLDecoder.decode(parts[0], WINDOWS_31J);
+            String rawValue = parts.length == 2 ? parts[1] : "";
+            if ("Token".equalsIgnoreCase(key)) rawValue = rawValue.replace("+", "%2B");
+            parsed.put(key, URLDecoder.decode(rawValue, WINDOWS_31J));
         }
         return parsed;
     }
