@@ -63,7 +63,9 @@ Open `http://127.0.0.1:4200`. Angular proxies `/api` and `/actuator` to `http://
 curl http://127.0.0.1:8080/actuator/health
 ```
 
-If Homebrew's JDK is not selected on macOS:
+`run-backend.sh` automatically detects Homebrew's Java 21 installation on both
+Apple Silicon (`/opt/homebrew`) and Intel (`/usr/local`) Macs. If Java is
+installed somewhere else, select it explicitly:
 
 ```bash
 export JAVA_HOME=/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home

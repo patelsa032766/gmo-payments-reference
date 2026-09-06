@@ -6,6 +6,38 @@ set -euo pipefail
 # reactor first makes this command reliable on a brand-new clone.
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# macOS ships /usr/bin/java as a launcher stub even when it cannot locate an
+# installed JDK. Homebrew also does not register its versioned JDK casks with
+# that launcher automatically. Resolve the two standard Homebrew locations so
+# a developer can run this project from a fresh terminal without maintaining a
+# machine-specific JAVA_HOME in the repository or in the sandbox .env file.
+if [[ ! -x "${JAVA_HOME:-}/bin/java" || ! -x "${JAVA_HOME:-}/bin/javac" ]]; then
+  for java_home_candidate in \
+    /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home \
+    /usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home; do
+    if [[ -x "${java_home_candidate}/bin/java" && -x "${java_home_candidate}/bin/javac" ]]; then
+      export JAVA_HOME="${java_home_candidate}"
+      export PATH="${JAVA_HOME}/bin:${PATH}"
+      break
+    fi
+  done
+fi
+
+# Fail with an actionable project-specific message before Maven invokes the
+# less helpful macOS Java launcher dialog. Linux and Windows-compatible shells
+# continue to work when Java 21 is already available on PATH.
+if ! java -version >/dev/null 2>&1 || ! javac -version >/dev/null 2>&1; then
+  cat >&2 <<'EOF'
+Java 21 could not be located.
+
+Install it with Homebrew:
+  brew install openjdk@21
+
+Or export JAVA_HOME and add its bin directory to PATH before running this script.
+EOF
+  exit 1
+fi
+
 # A developer may keep deployment secrets in the ignored .env.local file or
 # point GMO_ENV_FILE at another private file (for example, a companion
 # implementation's sandbox environment). The public repository never contains
