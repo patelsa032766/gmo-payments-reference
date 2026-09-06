@@ -59,7 +59,7 @@ public final class ConfigurationController {
         // Disabling is deliberately credential-free for local testing. Turning
         // protection back on proves that the environment token is configured.
         if (request.operatorTokenRequired()) authorizeCredential(token);
-        return experience.update(request.applicationNumber(),request.amountJpy(),
+        return experience.update(request.applicationNumber(),request.amountJpy(),request.paymentPlan(),
                 request.operatorTokenRequired(),request.checkoutLanguage());
     }
 
@@ -97,7 +97,7 @@ public final class ConfigurationController {
 
     record WorkspaceResponse(ActiveConfigurationResponse active, ActiveConfigurationResponse draft) {}
     record DraftRequest(List<ConfiguredMethodResponse> methods) {}
-    record ExperienceRequest(String applicationNumber,long amountJpy,
+    record ExperienceRequest(String applicationNumber,long amountJpy,String paymentPlan,
                              boolean operatorTokenRequired,String checkoutLanguage) {}
 
     record ActiveConfigurationResponse(

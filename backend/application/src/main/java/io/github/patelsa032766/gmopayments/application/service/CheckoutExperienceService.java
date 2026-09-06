@@ -10,13 +10,16 @@ public final class CheckoutExperienceService {
     private final CheckoutExperienceRepository repository;
     public CheckoutExperienceService(CheckoutExperienceRepository repository) { this.repository = repository; }
     public CheckoutExperienceSettings get() { return repository.get(); }
-    public CheckoutExperienceSettings update(String applicationNumber, long amountJpy,
+    public CheckoutExperienceSettings update(String applicationNumber, long amountJpy, String paymentPlan,
                                              boolean operatorTokenRequired, String checkoutLanguage) {
         if (applicationNumber == null || applicationNumber.isBlank())
             throw new IllegalArgumentException("A predefined checkout customer is required");
         if (amountJpy < 1) throw new IllegalArgumentException("Due today must be at least JPY 1");
+        if (!List.of("ONE_TIME", "MONTHLY").contains(paymentPlan))
+            throw new IllegalArgumentException("Payment plan must be ONE_TIME or MONTHLY");
         if (!List.of("en", "ja").contains(checkoutLanguage))
             throw new IllegalArgumentException("Checkout language must be en or ja");
-        return repository.update(applicationNumber, amountJpy, operatorTokenRequired, checkoutLanguage);
+        return repository.update(applicationNumber, amountJpy, paymentPlan,
+                operatorTokenRequired, checkoutLanguage);
     }
 }

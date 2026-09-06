@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActiveConfiguration, BrowserPaymentConfiguration, CheckoutApiService, CheckoutExperienceSettings, CheckoutScenario, ConfiguredMethod } from '../../core/api/checkout-api.service';
+import { ActiveConfiguration, BrowserPaymentConfiguration, CheckoutApiService, CheckoutExperienceSettings, CheckoutScenario, ConfiguredMethod, PaymentPlan } from '../../core/api/checkout-api.service';
 import { OperatorCredentialService } from '../../core/auth/operator-credential.service';
 import { map, switchMap } from 'rxjs';
 
@@ -29,6 +29,7 @@ export class ConfigurationPage implements OnInit {
   protected language: 'en'|'ja' = 'en';
   protected selectedApplication = '';
   protected amount = 10000;
+  protected paymentPlan: PaymentPlan = 'MONTHLY';
   protected operatorTokenRequired = true;
 
   ngOnInit(): void {
@@ -44,7 +45,9 @@ export class ConfigurationPage implements OnInit {
       this.operatorTokenRequired=settings.operatorTokenRequired;
       this.language=settings.checkoutLanguage;
       this.persistedTokenRequired.set(settings.operatorTokenRequired);
-      this.amount=settings.customers.find(item=>item.applicationNumber===settings.selectedApplicationNumber)?.amountJpy??10000;
+      const customer=settings.customers.find(item=>item.applicationNumber===settings.selectedApplicationNumber);
+      this.amount=customer?.amountJpy??10000;
+      this.paymentPlan=customer?.paymentPlan??'MONTHLY';
     });
   }
 
@@ -55,7 +58,11 @@ export class ConfigurationPage implements OnInit {
   }
   protected toggle(method: ConfiguredMethod): void { method.enabled=!method.enabled; this.changed(); }
   protected selectedCustomer():CheckoutScenario|null{return this.experience()?.customers.find(item=>item.applicationNumber===this.selectedApplication)??null;}
-  protected customerChanged():void{const customer=this.selectedCustomer();if(customer)this.amount=customer.amountJpy;this.changed();}
+  protected customerChanged():void{
+    const customer=this.selectedCustomer();
+    if(customer){this.amount=customer.amountJpy;this.paymentPlan=customer.paymentPlan;}
+    this.changed();
+  }
   protected move(index:number,direction:-1|1):void { const next=index+direction; const methods=[...this.methods()]; if(next<0||next>=methods.length)return; [methods[index],methods[next]]=[methods[next],methods[index]]; methods.forEach((method,i)=>method.displayOrder=i+1); this.methods.set(methods); this.changed(); }
   protected publish():void {
     if(this.tokenNeeded()&&!this.operatorToken){this.message.set('Enter the operator token to save changes.');return;}
@@ -64,7 +71,7 @@ export class ConfigurationPage implements OnInit {
     const publishMethods = () => this.api.saveConfigurationDraft(this.methods(),this.operatorToken).pipe(
       switchMap(draft=>{this.draftVersion.set(draft.version);return this.api.publishConfiguration(this.operatorToken);}),
     );
-    const saveExperience = () => this.api.saveCheckoutExperience(this.selectedApplication,this.amount,
+    const saveExperience = () => this.api.saveCheckoutExperience(this.selectedApplication,this.amount,this.paymentPlan,
       this.operatorTokenRequired,this.language,this.operatorToken);
 
     // When protection is being disabled, persist the global policy first so
@@ -96,7 +103,9 @@ export class ConfigurationPage implements OnInit {
     this.selectedApplication=settings.selectedApplicationNumber;
     this.operatorTokenRequired=settings.operatorTokenRequired;
     this.language=settings.checkoutLanguage;
-    this.amount=settings.customers.find(item=>item.applicationNumber===settings.selectedApplicationNumber)?.amountJpy??10000;
+    const customer=settings.customers.find(item=>item.applicationNumber===settings.selectedApplicationNumber);
+    this.amount=customer?.amountJpy??10000;
+    this.paymentPlan=customer?.paymentPlan??'MONTHLY';
   }
   private failure(message:string):void{this.saving.set(false);this.message.set(message);}
 }

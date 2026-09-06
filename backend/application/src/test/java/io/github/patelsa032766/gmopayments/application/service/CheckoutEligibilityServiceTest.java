@@ -29,6 +29,20 @@ class CheckoutEligibilityServiceTest {
     }
 
     @Test
+    void oneTimeCheckoutIncludesFurikomiButExcludesMonthlyOnlyKozaRegistration() {
+        var card = method(PaymentMethodCode.CARD, true, false, 1, 1_000_000, null, 1);
+        var furikomi = method(PaymentMethodCode.FURIKOMI, false, false, 1, 1_000_000, null, 2);
+        var koza = method(PaymentMethodCode.KOZA_FURIKAE_SELECT, true, true, 1, 1_000_000, null, 3);
+        var service = serviceWith(card, furikomi, koza);
+
+        var result = service.findOptions(new CheckoutEligibilityQuery(
+                DistributionChannel.PA, 10_000, false, true, "en"));
+
+        assertThat(result.methods()).extracting(EligiblePaymentMethod::code)
+                .containsExactly(PaymentMethodCode.CARD, PaymentMethodCode.FURIKOMI);
+    }
+
+    @Test
     void nonEkycBankDirectLimitDoesNotAffectOtherMethods() {
         var bank = method(PaymentMethodCode.BANK_DIRECT_REALTIME, true, false, 1, 300_000, 50_000L, 1);
         var card = method(PaymentMethodCode.CARD, true, false, 1, 1_000_000, null, 2);

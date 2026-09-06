@@ -57,14 +57,15 @@ class GmoPaymentsApplicationTest {
     }
 
     @Test
-    void checkoutScenarioPersistsCustomerAmountLanguageAndOperatorTokenPolicy() {
+    void checkoutScenarioPersistsCustomerAmountPlanLanguageAndOperatorTokenPolicy() {
         var original = checkoutExperience.get();
         var originalCustomer = original.selected();
         try {
-            var changed = checkoutExperience.update("APP-20260904-025", 25_000, false, "ja");
+            var changed = checkoutExperience.update("APP-20260904-025", 25_000, "ONE_TIME", false, "ja");
 
             assertThat(changed.selected().customerName()).isEqualTo("Ken Ito");
             assertThat(changed.selected().amountJpy()).isEqualTo(25_000);
+            assertThat(changed.selected().paymentPlan()).isEqualTo("ONE_TIME");
             assertThat(changed.checkoutLanguage()).isEqualTo("ja");
             assertThat(changed.operatorTokenRequired()).isFalse();
             assertThatCode(() -> operatorActions.requireAuthorized(null))
@@ -74,7 +75,7 @@ class GmoPaymentsApplicationTest {
             // Tests share one migrated fixture DB, so restore the original
             // singleton and keep every test independent of execution order.
             checkoutExperience.update(original.selectedApplicationNumber(), originalCustomer.amountJpy(),
-                    original.operatorTokenRequired(), original.checkoutLanguage());
+                    originalCustomer.paymentPlan(), original.operatorTokenRequired(), original.checkoutLanguage());
         }
     }
 

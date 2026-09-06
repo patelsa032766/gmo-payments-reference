@@ -83,7 +83,19 @@ POST   /api/v1/configuration/draft/publish
 DELETE /api/v1/configuration/draft
 ```
 
-The experience resource returns predefined customer/application scenarios and persists the selected application, due-today amount, checkout language, and `operatorTokenRequired`. When that saved flag is enabled, configuration changes, capture, MIT payments, payment-order changes, Koza batches, and manual SFTP reconciliation all require `X-Operator-Token`.
+The experience resource returns predefined customer/application scenarios and persists the selected application, due-today amount, payment plan (`ONE_TIME` or `MONTHLY`), checkout language, and `operatorTokenRequired`. The selected plan is not decorative: it is passed into checkout eligibility and revalidated when payment submission is reserved. `MONTHLY` exposes reusable methods and the monthly-only combined Koza Furikae registration plus first-premium Furikomi journey. `ONE_TIME` excludes that mandate-registration product and can expose ordinary Furikomi instead. When the saved operator flag is enabled, configuration changes, capture, MIT payments, payment-order changes, Koza batches, and manual SFTP reconciliation all require `X-Operator-Token`.
+
+Example experience update:
+
+```json
+{
+  "applicationNumber": "APP-20260821-001",
+  "amountJpy": 10000,
+  "paymentPlan": "MONTHLY",
+  "operatorTokenRequired": false,
+  "checkoutLanguage": "en"
+}
+```
 
 The experience `PUT` may set `operatorTokenRequired` to `false` without a
 credential so a fresh local demonstration can opt out of operator prompts. The

@@ -70,9 +70,12 @@ Editing creates or replaces one `DRAFT` release. Publishing runs as a short tran
 
 The local test scenario is separate from immutable payment-method releases. Its
 singleton row selects one predefined `application_record`, checkout language,
-and whether configuration-page mutations require the shared development token.
-Changing **Due today** updates the selected application amount in the same short
-SQLite transaction. Financial operator APIs never consult this flag.
+and whether operator mutations require the shared development token. Changing
+**Due today** or the `ONE_TIME`/`MONTHLY` schedule updates the selected
+application in the same short SQLite transaction. Checkout eligibility and the
+payment-command boundary both read that persisted schedule. The token flag is a
+single global local-testing switch; when enabled it covers configuration and
+financial operator actions.
 
 ## Payment command interaction
 

@@ -34,13 +34,15 @@ public class SQLiteCheckoutExperienceRepository implements CheckoutExperienceRep
                 rs.getString(6),rs.getBoolean(7),rs.getLong(8))).list();
         return new CheckoutExperienceSettings(settings.applicationNumber(),settings.tokenRequired(),settings.language(),customers);
     }
-    @Override public CheckoutExperienceSettings update(String applicationNumber,long amountJpy,
+    @Override public CheckoutExperienceSettings update(String applicationNumber,long amountJpy,String paymentPlan,
                                                        boolean operatorTokenRequired,String checkoutLanguage) {
         lockRetry.execute("update checkout experience",()->transactions.execute(status->{
             int changed=jdbc.sql("""
-                    UPDATE application_record SET amount_jpy=:amount,updated_at=:now,version=version+1
+                    UPDATE application_record SET amount_jpy=:amount,payment_plan=:paymentPlan,
+                    updated_at=:now,version=version+1
                     WHERE application_number=:application
-                    """).param("amount",amountJpy).param("now",java.time.Instant.now().toString())
+                    """).param("amount",amountJpy).param("paymentPlan",paymentPlan)
+                    .param("now",java.time.Instant.now().toString())
                     .param("application",applicationNumber).update();
             if(changed!=1)throw new IllegalArgumentException("Unknown predefined checkout application: "+applicationNumber);
             jdbc.sql("""

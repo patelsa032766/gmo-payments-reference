@@ -5,6 +5,6 @@ import io.github.patelsa032766.gmopayments.domain.CheckoutExperienceSettings;
 /** Persistence boundary for the synthetic customer/application used by the demo checkout. */
 public interface CheckoutExperienceRepository {
     CheckoutExperienceSettings get();
-    CheckoutExperienceSettings update(String applicationNumber, long amountJpy,
+    CheckoutExperienceSettings update(String applicationNumber, long amountJpy, String paymentPlan,
                                       boolean operatorTokenRequired, String checkoutLanguage);
 }

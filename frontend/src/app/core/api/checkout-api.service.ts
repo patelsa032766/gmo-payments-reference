@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 export type CheckoutLanguage = 'en' | 'ja';
+export type PaymentPlan = 'ONE_TIME' | 'MONTHLY';
 export type DistributionChannel = 'PA' | 'IA' | 'FI';
 export type PaymentExecutionMode = 'AUTH' | 'CAPTURE';
 export interface PaymentMethodOption { code: string; label: string; description: string; recurring: boolean; displayOrder: number; citExecutionMode: PaymentExecutionMode; }
@@ -12,7 +13,7 @@ export interface ActiveConfiguration { version: number; publishedAt: string; pub
 export interface ConfigurationWorkspace { active: ActiveConfiguration; draft: ActiveConfiguration | null; }
 export interface CheckoutScenario {
   applicationNumber:string; customerCode:string; customerName:string; policyName:string;
-  channel:DistributionChannel; paymentPlan:string; ekycVerified:boolean; amountJpy:number;
+  channel:DistributionChannel; paymentPlan:PaymentPlan; ekycVerified:boolean; amountJpy:number;
 }
 export interface CheckoutExperienceSettings {
   selectedApplicationNumber:string; operatorTokenRequired:boolean; checkoutLanguage:CheckoutLanguage; customers:CheckoutScenario[];
@@ -62,10 +63,10 @@ export class CheckoutApiService {
   getCheckoutExperience(): Observable<CheckoutExperienceSettings> {
     return this.http.get<CheckoutExperienceSettings>('/api/v1/configuration/experience');
   }
-  saveCheckoutExperience(applicationNumber:string,amountJpy:number,
+  saveCheckoutExperience(applicationNumber:string,amountJpy:number,paymentPlan:PaymentPlan,
                          operatorTokenRequired:boolean,checkoutLanguage:CheckoutLanguage,operatorToken:string):Observable<CheckoutExperienceSettings>{
     return this.http.put<CheckoutExperienceSettings>('/api/v1/configuration/experience',
-      {applicationNumber,amountJpy,operatorTokenRequired,checkoutLanguage},
+      {applicationNumber,amountJpy,paymentPlan,operatorTokenRequired,checkoutLanguage},
       {headers:{'X-Operator-Token':operatorToken}});
   }
   saveConfigurationDraft(methods: ConfiguredMethod[], operatorToken: string): Observable<ActiveConfiguration> {

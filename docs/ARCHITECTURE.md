@@ -146,15 +146,18 @@ The customer enrollment use case is one UI journey but two ordered backend opera
 
 The workflow stores separate registration and first-payment references linked to one application. The confirmation state is `mandate registered + transfer due`, not paid. Later Furikomi notification/SFTP evidence marks the first premium paid. Later monthly debits use the registered mandate and never reuse the Furikomi state machine.
 
+The journey is selected by business intent, not by asking the customer to compose two payment methods. A persisted `MONTHLY` payment plan makes the combined “Bank transfer today + monthly bank debit” option eligible in Checkout. Selecting it starts Koza registration; only a verified successful browser return provisions the separate Furikomi instructions. A persisted `ONE_TIME` plan excludes Koza registration and exposes ordinary Furikomi when otherwise eligible.
+
 ## 9. Configuration and secrets
 
 Payment-method enablement, ordering, thresholds, distribution channels, eKYC rules, language, webhook enablement, SFTP enablement, retry policies, and Koza calendars are versioned configuration. Administrators edit a draft and explicitly publish an immutable release.
 
-The predefined-customer selector, due-today amount, and checkout language form a
+The predefined-customer selector, due-today amount, `ONE_TIME`/`MONTHLY` payment plan, and checkout language form a
 separate local demonstration scenario stored in `checkout_experience_settings`
 and the selected `application_record`. Its optional authentication flag applies
-only to configuration mutations. Financial operator commands remain authorized
-independently and cannot be bypassed by changing this scenario.
+to configuration and financial operator mutations as one global local-testing
+policy. Production deployments must replace this convenience control with real
+identity, authorization, and separation of duties.
 
 Environment-specific public URLs, the local KanjiAI/Cloudflare route, credentials, and key paths are deployment configuration. They are not runtime business configuration and must not be exported with a configuration release.
 

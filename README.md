@@ -7,7 +7,7 @@ The approved customer/operator experience is preserved separately in `ui-mock/` 
 | Route | Audience | Purpose |
 | --- | --- | --- |
 | `/checkout` | Customer | Eligibility-filtered checkout, method-specific collection, provider handoff, and confirmation. |
-| `/configuration` | Administrator | Select a predefined test customer, amount, and language; publish method visibility, order, thresholds, plan eligibility, and CIT policy. |
+| `/configuration` | Administrator | Select a predefined test customer, amount, one-time/recurring schedule, and language; publish method visibility, order, thresholds, plan eligibility, and CIT policy. |
 | `/operations` | Operator/auditor | Transaction list, chronological lifecycle thread, paired outbound/inbound evidence, webhook setup, and SFTP status. |
 | `/mit` | Payment operator | Saved instruments, Primary/Backup assignment, individual MIT charges, and monthly Koza batches. |
 
@@ -15,7 +15,7 @@ The approved customer/operator experience is preserved separately in `ui-mock/` 
 
 - Server-side method enablement, ordering, plan rules, eKYC rules, channels, amount thresholds, and localized labels.
 - Versioned configuration drafts with explicit publish/discard commands.
-- A SQLite-backed test checkout scenario: predefined customer/application, due-today amount, and English/Japanese language survive navigation and restart.
+- A SQLite-backed test checkout scenario: predefined customer/application, due-today amount, one-time/recurring payment schedule, and English/Japanese language survive navigation and restart.
 - Card browser tokenization, versioned CIT auth/immediate-sale policy, reusable-card registration, and contextual capture.
 - PayPay recurring-account authorization followed by a configured first authorization or immediate sale, with contextual capture where required.
 - Real-time bank debit (`口座直結決済`) registration followed immediately by a debit.

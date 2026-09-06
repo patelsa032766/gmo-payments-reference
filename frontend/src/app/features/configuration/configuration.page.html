@@ -69,8 +69,22 @@
               <option value="en">English</option>
               <option value="ja">日本語</option>
             </select></label
+          ><label
+            >Payment schedule<select [(ngModel)]="paymentPlan" (change)="changed()">
+              <option value="ONE_TIME">One-time payment</option>
+              <option value="MONTHLY">Recurring monthly</option>
+            </select></label
           >
         </div>
+        <p class="plan-note">
+          @if (paymentPlan === 'MONTHLY') {
+            Recurring monthly enables reusable methods. The combined bank journey registers Koza
+            Furikae, then issues Furikomi instructions for today's first premium.
+          } @else {
+            One-time payment shows eligible pay-now methods, including ordinary Furikomi, without
+            registering a Koza Furikae mandate.
+          }
+        </p>
         @if (selectedCustomer(); as customer) {
           <dl class="scenario-summary">
             <div>
@@ -80,10 +94,6 @@
             <div>
               <dt>Channel</dt>
               <dd>{{ customer.channel }}</dd>
-            </div>
-            <div>
-              <dt>Plan</dt>
-              <dd>{{ customer.paymentPlan }}</dd>
             </div>
             <div>
               <dt>eKYC</dt>
