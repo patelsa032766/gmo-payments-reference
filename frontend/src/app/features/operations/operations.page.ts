@@ -29,6 +29,21 @@ export class OperationsPage implements OnInit {
       PAYEASY: 'Pay-easy', FURIKOMI: 'Bank transfer',
     } as Record<string, string>)[method] ?? method;
   }
+  protected roleLabel(row: TransactionSummary): string {
+    const labels: Record<string,string> = {
+      MANDATE_REGISTRATION:'Mandate registration', FIRST_PREMIUM:'First premium',
+      RECURRING_DEBIT:'Recurring debit',
+      PAYMENT:row.initiationType==='MIT'?'Recurring payment':'Customer payment',
+    };
+    return labels[row.transactionRole] ?? row.operation;
+  }
+  protected amountLabel(row: TransactionSummary): string {
+    return row.transactionRole === 'MANDATE_REGISTRATION' ? 'No charge' : `JPY ${row.amountJpy.toLocaleString()}`;
+  }
+  protected settlementLabel(row: TransactionSummary): string | null {
+    if (!row.settledAmountJpy || row.transactionRole === 'MANDATE_REGISTRATION') return null;
+    return `Received JPY ${row.settledAmountJpy.toLocaleString()}`;
+  }
   protected readonly filtered = computed(() => this.rows().filter(row => {
     const query = this.search().trim().toLowerCase();
     return (!query || [row.transactionId,row.applicationNumber,row.customerName,row.customerCode,row.merchantReference]
@@ -64,7 +79,10 @@ export class OperationsPage implements OnInit {
   }
   protected exchangeAmountJpy(): number | null {
     for (const exchange of this.eventExchanges()) {
-      const rawAmount = exchange.requestBody['Amount'] ?? exchange.requestBody['amount'];
+      const order = exchange.requestBody['order'];
+      const nestedAmount = order && typeof order === 'object'
+        ? (order as Record<string,unknown>)['amount'] : undefined;
+      const rawAmount = exchange.requestBody['Amount'] ?? exchange.requestBody['amount'] ?? nestedAmount;
       if (rawAmount !== undefined && rawAmount !== null && String(rawAmount).trim() !== '') {
         const amount = Number(rawAmount);
         if (Number.isFinite(amount)) return amount;

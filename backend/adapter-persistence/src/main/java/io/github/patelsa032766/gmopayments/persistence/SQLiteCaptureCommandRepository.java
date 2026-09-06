@@ -88,7 +88,9 @@ public class SQLiteCaptureCommandRepository implements CaptureCommandRepository 
                     UPDATE payment_transaction SET canonical_state=:state, provider_status=:providerStatus,
                         provider_order_id=COALESCE(:orderId,provider_order_id),
                         provider_access_id=COALESCE(:accessId,provider_access_id), requires_attention=0,
-                        operation='CAPTURE', updated_at=:now, version=version+1 WHERE id=:id
+                        operation='CAPTURE',
+                        settled_amount_jpy=CASE WHEN :state='PAID' THEN amount_jpy ELSE settled_amount_jpy END,
+                        updated_at=:now, version=version+1 WHERE id=:id
                     """).param("state", result.canonicalState()).param("providerStatus", result.providerStatus())
                     .param("orderId", result.providerOrderId()).param("accessId", result.providerAccessId())
                     .param("now", now).param("id", transactionPk).update();

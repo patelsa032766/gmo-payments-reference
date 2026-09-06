@@ -2,6 +2,7 @@ package io.github.patelsa032766.gmopayments.application.service;
 
 import io.github.patelsa032766.gmopayments.application.port.InboundMessageConfigurationProvider;
 import io.github.patelsa032766.gmopayments.application.port.InboundMessageRepository;
+import io.github.patelsa032766.gmopayments.application.port.InboundPaymentMessageResolver;
 import io.github.patelsa032766.gmopayments.domain.InboundMessageResult;
 import io.github.patelsa032766.gmopayments.domain.InboundPaymentMessage;
 
@@ -16,11 +17,14 @@ import java.util.Map;
 public final class InboundMessageService {
     private final InboundMessageRepository repository;
     private final InboundMessageConfigurationProvider configuration;
+    private final InboundPaymentMessageResolver resolver;
 
     public InboundMessageService(InboundMessageRepository repository,
-                                 InboundMessageConfigurationProvider configuration) {
+                                 InboundMessageConfigurationProvider configuration,
+                                 InboundPaymentMessageResolver resolver) {
         this.repository = repository;
         this.configuration = configuration;
+        this.resolver = resolver;
     }
 
     public InboundMessageResult receive(String sourceFamily, Map<String, ?> rawPayload) {
@@ -49,8 +53,9 @@ public final class InboundMessageService {
         sanitized.entrySet().stream().sorted(Map.Entry.comparingByKey())
                 .forEach(entry -> canonical.put(entry.getKey(), entry.getValue()));
         String payloadHash = sha256(sourceFamily + "\n" + canonical);
-        return repository.receive(new InboundPaymentMessage(sourceFamily, externalKey, payloadHash,
-                orderId, accessId, status, canonical, Instant.now()), configuration.webhooksEnabled());
+        InboundPaymentMessage received = new InboundPaymentMessage(sourceFamily, externalKey, payloadHash,
+                orderId, accessId, status, canonical, Instant.now());
+        return repository.receive(resolver.resolve(received), configuration.webhooksEnabled());
     }
 
     private static String firstText(Map<String, ?> payload, String... keys) {

@@ -173,8 +173,10 @@ OpenAPI requests include a URL-safe, per-order `merchant.csrfToken` derived with
 validates it in constant time. Cash notifications such as convenience-store
 payments contain `accessId`, `event`, and `csrfToken`, but no `orderId`. The
 receiver therefore resolves the persisted provider order by `accessId` before
-validating the per-order token. `CASH_PAID` advances the existing transaction
-thread to `PAID`; it never creates a second transaction. The OpenAPI endpoint
+validating the per-order token. Because a virtual-account transfer may arrive
+in several deposits, `CASH_PAID` triggers a retry-safe `/order/inquiry` and
+updates cumulative `settledAmountJpy`; the first-payment row remains
+`PARTIALLY_PAID` until the requested amount is met. The OpenAPI endpoint
 also accepts `X-Webhook-Ingress-Token` when a trusted edge injects it. Legacy protocol
 notifications do not carry the OpenAPI token and therefore require that edge
 header. Never put either secret in a URL. Browser-return endpoints use provider

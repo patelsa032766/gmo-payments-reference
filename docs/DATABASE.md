@@ -43,7 +43,9 @@ With `scripts/run-backend.sh`, the file resolves to `backend/bootstrap/runtime/g
 
 ## Transaction-thread model
 
-`payment_transaction` is the root. Its `canonical_state` is a fast projection; `payment_event` is the ordered audit history. `provider_exchange` attaches the precise sanitized request/response pair to the event that interpreted it.
+`payment_transaction` is one ledger action. `root_transaction_id` groups related actions, `transaction_role` distinguishes `MANDATE_REGISTRATION`, `FIRST_PREMIUM`, `RECURRING_DEBIT`, and ordinary `PAYMENT`, and `settled_amount_jpy` records cumulative funds separately from the requested `amount_jpy`. Its `canonical_state` is a fast projection; `payment_event` is the ordered audit history. `provider_exchange` attaches the precise sanitized request/response pair to the event that interpreted it.
+
+For Koza Furikae, the mandate row has amount zero. The first premium is a linked Furikomi row with its own provider order/access references and may be `INSTRUCTIONS_ISSUED`, `PARTIALLY_PAID`, or `PAID`. Future collections are separate linked MIT rows and follow `SCHEDULED -> PROCESSING -> PAID|FAILED` from asynchronous GMO results.
 
 Later lifecycle activity is never detached:
 

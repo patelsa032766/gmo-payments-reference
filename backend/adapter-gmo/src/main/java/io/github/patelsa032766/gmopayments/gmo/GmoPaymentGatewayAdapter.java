@@ -368,13 +368,28 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
         String cashStatus = status(cash.rawPayload(), "TRADING");
         exchanges.add(evidence("OPENAPI", "CashCharge", "/cash/charge", cashRequest, cash,
                 "INSTRUCTIONS_ISSUED"));
-        var outcome = new PaymentGatewayResult("MANDATE_REGISTERED_TRANSFER_DUE",
-                registrationResult + "/" + cashStatus, furikomiOrderId,
-                accessId(cash.rawPayload()), "KOZA_REGISTERED_FURIKOMI_ISSUED",
-                "Koza Furikae registered and first-premium transfer instructions issued", false,
-                PaymentNextAction.none(), instructions, "OPENAPI", "CashCharge", "/cash/charge",
-                cash.statusCode(), safeInt(cash.durationMs()), GmoSanitizer.sanitize(cashRequest),
-                cash.sanitizedPayload());
+        var firstPayment = new LinkedHashMap<String, Object>();
+        firstPayment.put("method", "FURIKOMI");
+        firstPayment.put("state", "INSTRUCTIONS_ISSUED");
+        firstPayment.put("amountJpy", context.amountJpy());
+        firstPayment.put("providerOrderId", furikomiOrderId);
+        firstPayment.put("providerAccessId", accessId(cash.rawPayload()));
+        firstPayment.put("providerStatus", cashStatus);
+        firstPayment.put("instructions", instructions);
+        var journey = new LinkedHashMap<String, Object>();
+        journey.put("mandateState", "REGISTERED");
+        journey.put("firstPayment", firstPayment);
+
+        // The continuation outcome describes the mandate.  The repository
+        // persists the first-payment object above as a distinct, linked
+        // Furikomi transaction and assigns its local transaction ID before the
+        // response is returned to checkout.
+        var outcome = new PaymentGatewayResult("MANDATE_REGISTERED",
+                registrationResult, context.applicationNumber(), transactionId,
+                "KOZA_MANDATE_REGISTERED", "Koza Furikae mandate registered", false,
+                PaymentNextAction.none(), journey, "IDPASS", "BankAccountTranResult",
+                "BankAccountTranResult.idPass", inquiry.statusCode(), safeInt(inquiry.durationMs()),
+                GmoSanitizer.sanitize(asObjectMap(inquiryRequest)), inquiry.sanitizedPayload());
         return new PaymentContinuationResult(outcome, exchanges);
     }
 

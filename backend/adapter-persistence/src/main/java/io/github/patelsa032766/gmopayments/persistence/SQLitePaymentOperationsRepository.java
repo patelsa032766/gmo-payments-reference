@@ -32,8 +32,8 @@ public class SQLitePaymentOperationsRepository implements PaymentOperationsRepos
     public List<PaymentTransactionSummary> findTransactions() {
         return jdbc.sql("""
                 SELECT t.transaction_id, t.root_transaction_id, a.application_number,
-                       t.amount_jpy, t.canonical_state, t.method_code, t.product_code,
-                       t.initiation_type, t.operation, c.full_name, c.customer_code,
+                       t.amount_jpy, t.settled_amount_jpy, t.canonical_state, t.method_code, t.product_code,
+                       t.initiation_type, t.operation, t.transaction_role, c.full_name, c.customer_code,
                        t.merchant_reference, t.updated_at, t.requires_attention
                 FROM payment_transaction t
                 JOIN customer c ON c.id = t.customer_id
@@ -42,8 +42,10 @@ public class SQLitePaymentOperationsRepository implements PaymentOperationsRepos
                 """).query((rs, rowNum) -> new PaymentTransactionSummary(
                 rs.getString("transaction_id"), rs.getString("root_transaction_id"),
                 rs.getString("application_number"), rs.getLong("amount_jpy"),
+                rs.getLong("settled_amount_jpy"),
                 rs.getString("canonical_state"), PaymentMethodCode.fromApiValue(rs.getString("method_code")),
                 rs.getString("product_code"), rs.getString("initiation_type"), rs.getString("operation"),
+                rs.getString("transaction_role"),
                 rs.getString("full_name"), rs.getString("customer_code"), rs.getString("merchant_reference"),
                 Instant.parse(rs.getString("updated_at")), rs.getBoolean("requires_attention"))).list();
     }
@@ -55,15 +57,17 @@ public class SQLitePaymentOperationsRepository implements PaymentOperationsRepos
                 .findFirst();
         if (transaction.isEmpty()) return Optional.empty();
 
+        String familyRoot = transaction.get().rootTransactionId() == null
+                ? transactionId : transaction.get().rootTransactionId();
         var events = jdbc.sql("""
                 SELECT e.event_id, e.event_type, e.source, e.summary, e.canonical_state_after,
                        e.actor, e.correlation_id, e.evidence_json, e.provider_occurred_at, e.occurred_at
                 FROM payment_event e
                 JOIN payment_transaction t ON t.id = e.transaction_id
-                WHERE t.transaction_id = :transactionId
-                   OR t.root_transaction_id = :transactionId
+                WHERE t.transaction_id = :familyRoot
+                   OR t.root_transaction_id = :familyRoot
                 ORDER BY e.occurred_at, e.id
-                """).param("transactionId", transactionId).query((rs, rowNum) -> new PaymentTimelineEvent(
+                """).param("familyRoot", familyRoot).query((rs, rowNum) -> new PaymentTimelineEvent(
                 rs.getString("event_id"), rs.getString("event_type"), rs.getString("source"),
                 rs.getString("summary"), rs.getString("canonical_state_after"), rs.getString("actor"),
                 rs.getString("correlation_id"), json(rs.getString("evidence_json")),
@@ -77,10 +81,10 @@ public class SQLitePaymentOperationsRepository implements PaymentOperationsRepos
                 FROM provider_exchange x
                 JOIN payment_transaction t ON t.id = x.transaction_id
                 LEFT JOIN payment_event e ON e.id = x.event_id
-                WHERE t.transaction_id = :transactionId
-                   OR t.root_transaction_id = :transactionId
+                WHERE t.transaction_id = :familyRoot
+                   OR t.root_transaction_id = :familyRoot
                 ORDER BY x.created_at, x.id
-                """).param("transactionId", transactionId).query((rs, rowNum) -> new ProviderExchangeSnapshot(
+                """).param("familyRoot", familyRoot).query((rs, rowNum) -> new ProviderExchangeSnapshot(
                 rs.getString("exchange_id"), rs.getString("event_id"), rs.getString("direction"),
                 rs.getString("transport"), rs.getString("operation"), rs.getString("endpoint"),
                 nullableInteger(rs, "http_status"), nullableInteger(rs, "duration_ms"),

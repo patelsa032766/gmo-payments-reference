@@ -45,6 +45,11 @@ h1 { margin: 0 0 14px; font-size: 1.25rem; letter-spacing: -.02em; line-height: 
 .confirmation dl > div { display: grid; grid-template-columns: minmax(94px,.65fr) minmax(0,1.35fr); gap: 12px; padding: 7px 0; }
 .confirmation dt { color: var(--muted); font-size: .7rem; }
 .confirmation dd { margin: 0; font-size: .86rem; overflow-wrap: anywhere; }
+.first-payment { margin-top: 18px; padding: 18px; border: 1px solid #e9cf9d; border-radius: 10px; background: #fffaf0; }
+.first-payment h2 { margin: 0 0 5px; font-size: 1rem; font-weight: 500; }
+.first-payment > div > p:last-child { margin: 0 0 14px; color: var(--muted); font-size: .78rem; line-height: 1.45; }
+.confirmation .first-payment dl { border-color: #eadcbf; }
+.confirmation .bank-instructions { margin-top: 12px; border-top: 0; }
 @media (max-width: 620px) {
   .customer-flow { padding: 22px 18px; }
   .application-card, .confirmation dl { grid-template-columns: 1fr; }

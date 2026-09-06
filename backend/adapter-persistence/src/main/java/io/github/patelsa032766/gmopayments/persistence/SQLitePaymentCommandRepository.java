@@ -151,7 +151,9 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                             UPDATE payment_transaction
                             SET canonical_state = :state, provider_order_id = :orderId,
                                 provider_access_id = :accessId, provider_status = :providerStatus,
-                                requires_attention = :attention, version = version + 1, updated_at = :updatedAt
+                                requires_attention = :attention,
+                                settled_amount_jpy=CASE WHEN :state='PAID' THEN amount_jpy ELSE settled_amount_jpy END,
+                                version = version + 1, updated_at = :updatedAt
                             WHERE id = :id
                             """).param("state", result.canonicalState()).param("orderId", result.providerOrderId())
                             .param("accessId", result.providerAccessId()).param("providerStatus", result.providerStatus())
@@ -297,6 +299,10 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                                                       PaymentContinuationResult continuation) {
         return lockRetry.execute("record browser-return continuation", () -> transactions.execute(status -> {
             PaymentGatewayResult result = continuation.outcome();
+            Map<String, Object> responseInstructions = new LinkedHashMap<>(result.instructions());
+            Map<String, Object> firstPayment = nestedMap(responseInstructions, "firstPayment");
+            boolean completedKozaRegistration = context.method() == PaymentMethodCode.KOZA_FURIKAE_SELECT
+                    && "MANDATE_REGISTERED".equals(result.canonicalState()) && !firstPayment.isEmpty();
             long transactionPk = transactionPk(context.transactionId());
             String initialProviderReference = jdbc.sql("""
                     SELECT provider_access_id FROM payment_transaction WHERE id=:id
@@ -305,25 +311,31 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
             jdbc.sql("""
                     UPDATE payment_transaction
                     SET canonical_state=:state,
+                        amount_jpy=CASE WHEN :mandateOnly THEN 0 ELSE amount_jpy END,
+                        transaction_role=CASE WHEN :mandateOnly THEN 'MANDATE_REGISTRATION' ELSE transaction_role END,
                         provider_order_id=COALESCE(:providerOrderId, provider_order_id),
                         provider_access_id=COALESCE(:providerAccessId, provider_access_id),
                         provider_status=:providerStatus, requires_attention=:attention,
                         version=version+1, updated_at=:updatedAt
                     WHERE id=:id
-                    """).param("state", result.canonicalState()).param("providerOrderId", result.providerOrderId())
+                    """).param("state", result.canonicalState()).param("mandateOnly", completedKozaRegistration)
+                    .param("providerOrderId", result.providerOrderId())
                     .param("providerAccessId", result.providerAccessId()).param("providerStatus", result.providerStatus())
                     .param("attention", result.requiresAttention()).param("updatedAt", now)
                     .param("id", transactionPk).update();
             jdbc.sql("""
                     UPDATE application_record SET state=:state, version=version+1, updated_at=:updatedAt
                     WHERE application_number=:applicationNumber
-                    """).param("state", result.canonicalState()).param("updatedAt", now)
+                    """).param("state", completedKozaRegistration ? "AWAITING_FIRST_PAYMENT" : result.canonicalState())
+                    .param("updatedAt", now)
                     .param("applicationNumber", context.applicationNumber()).update();
 
             long eventPk = appendEvent(transactionPk, result.eventType(), "BROWSER_RETURN", result.summary(),
                     result.canonicalState(), "customer", context.correlationId(), result.instructions());
             for (ProviderCallEvidence exchange : continuation.exchanges()) {
-                appendContinuationExchange(transactionPk, eventPk, context.correlationId(), exchange);
+                if (!completedKozaRegistration || !"CashCharge".equals(exchange.operation())) {
+                    appendContinuationExchange(transactionPk, eventPk, context.correlationId(), exchange);
+                }
             }
             appendProviderResource(transactionPk, "REGISTRATION_REFERENCE", initialProviderReference,
                     result.canonicalState());
@@ -338,11 +350,52 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                         .param("instrumentId", instrumentPk).param("transactionId", transactionPk).update();
             }
 
+            if (completedKozaRegistration) {
+                long instrumentPk = jdbc.sql("SELECT instrument_id FROM payment_transaction WHERE id=:id")
+                        .param("id", transactionPk).query(Long.class).single();
+                String firstPaymentTransactionId = "TXN-FURIKOMI-" + compactId();
+                String providerOrderId = text(firstPayment.get("providerOrderId"));
+                String providerAccessId = text(firstPayment.get("providerAccessId"));
+                String providerStatus = firstNonBlank(text(firstPayment.get("providerStatus")), "TRADING");
+                long amountJpy = longValue(firstPayment.get("amountJpy"), context.amountJpy());
+                jdbc.sql("""
+                        INSERT INTO payment_transaction
+                            (transaction_id, root_transaction_id, application_id, customer_id, instrument_id,
+                             method_code, product_code, initiation_type, operation, transaction_role,
+                             amount_jpy, settled_amount_jpy, canonical_state, merchant_reference,
+                             provider_order_id, provider_access_id, provider_status, configuration_version)
+                        SELECT :transactionId, :rootTransactionId, application_id, customer_id, :instrumentId,
+                               'furikomi', 'bank_transfer_gmo_aozora', 'CIT', 'FIRST_PREMIUM_TRANSFER',
+                               'FIRST_PREMIUM', :amount, 0, 'INSTRUCTIONS_ISSUED', :merchantReference,
+                               :providerOrderId, :providerAccessId, :providerStatus, configuration_version
+                        FROM payment_transaction WHERE id=:parentId
+                        """).param("transactionId", firstPaymentTransactionId)
+                        .param("rootTransactionId", context.transactionId()).param("instrumentId", instrumentPk)
+                        .param("amount", amountJpy).param("merchantReference", providerOrderId)
+                        .param("providerOrderId", providerOrderId).param("providerAccessId", providerAccessId)
+                        .param("providerStatus", providerStatus).param("parentId", transactionPk).update();
+                long firstPaymentPk = transactionPk(firstPaymentTransactionId);
+                Map<String, Object> paymentInstructions = nestedMap(firstPayment, "instructions");
+                long paymentEventPk = appendEvent(firstPaymentPk, "FIRST_PAYMENT_INSTRUCTIONS_ISSUED",
+                        "GMO_API", "First-premium Furikomi instructions issued", "INSTRUCTIONS_ISSUED",
+                        "system", context.correlationId(), paymentInstructions);
+                continuation.exchanges().stream().filter(exchange -> "CashCharge".equals(exchange.operation()))
+                        .forEach(exchange -> appendContinuationExchange(firstPaymentPk, paymentEventPk,
+                                context.correlationId(), exchange));
+                appendProviderResource(firstPaymentPk, "PROVIDER_ORDER", providerOrderId, "INSTRUCTIONS_ISSUED");
+                appendProviderResource(firstPaymentPk, "PROVIDER_ACCESS", providerAccessId, "INSTRUCTIONS_ISSUED");
+
+                var enrichedFirstPayment = new LinkedHashMap<>(firstPayment);
+                enrichedFirstPayment.put("transactionId", firstPaymentTransactionId);
+                enrichedFirstPayment.put("instructions", paymentInstructions);
+                responseInstructions.put("firstPayment", enrichedFirstPayment);
+            }
+
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("state", result.canonicalState());
             response.put("providerStatus", result.providerStatus());
             response.put("requiresAttention", result.requiresAttention());
-            response.put("instructions", result.instructions());
+            response.put("instructions", responseInstructions);
             jdbc.sql("""
                     UPDATE idempotency_record
                     SET status=:status, response_json=:response, updated_at=:updatedAt
@@ -352,7 +405,7 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                     .param("transactionId", transactionPk).update();
             return new PaymentSubmissionResult(context.transactionId(), context.applicationNumber(),
                     context.method(), result.canonicalState(), result.providerStatus(),
-                    result.requiresAttention(), PaymentNextAction.none(), result.instructions(), false);
+                    result.requiresAttention(), PaymentNextAction.none(), responseInstructions, false);
         }));
     }
 
@@ -548,7 +601,7 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
                         || "PAYPAY_REGISTERED_PAYMENT_FAILED".equals(result.eventType())))
                 || (method == PaymentMethodCode.BANK_DIRECT_REALTIME && "PAID".equals(state))
                 || (method == PaymentMethodCode.KOZA_FURIKAE_SELECT
-                    && "MANDATE_REGISTERED_TRANSFER_DUE".equals(state));
+                    && "MANDATE_REGISTERED".equals(state));
     }
 
     private static boolean isTerminal(String state) {
@@ -671,6 +724,18 @@ public class SQLitePaymentCommandRepository implements PaymentCommandRepository 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> nestedMap(Map<String, Object> source, String key) {
         return source.get(key) instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
+    }
+
+    private static String text(Object value) {
+        if (value == null) return null;
+        String result = String.valueOf(value).trim();
+        return result.isEmpty() ? null : result;
+    }
+
+    private static long longValue(Object value, long fallback) {
+        if (value instanceof Number number) return number.longValue();
+        try { return value == null ? fallback : Long.parseLong(String.valueOf(value)); }
+        catch (NumberFormatException ignored) { return fallback; }
     }
 
     private static String compactId() {

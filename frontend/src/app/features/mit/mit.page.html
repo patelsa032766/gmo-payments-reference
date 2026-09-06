@@ -1,9 +1,10 @@
 <section class="panel">
   <header>
-    <div><p class="eyebrow">Merchant-initiated payments</p><h1>Run recurring payments</h1><p class="lead">Charge an individual saved method or prepare a monthly Koza Furikae batch. Sensitive account data never appears here.</p></div>
+    <div><p class="eyebrow">Merchant-initiated payments</p><h1>Run recurring payments</h1><p class="lead">Charge a saved method or submit future Koza Furikae debits. Every payment receives its own transaction thread.</p></div>
     @if(operatorTokenRequired()){<label class="token">Operator token<input [(ngModel)]="operatorToken" type="password" autocomplete="off" placeholder="Required for actions"></label>}@else{<p class="token">Operator token disabled for local testing</p>}
   </header>
-  <nav class="subnav"><button [class.active]="section()==='individual'" (click)="section.set('individual')">Individual recurring payment</button><button [class.active]="section()==='koza'" (click)="section.set('koza')">Monthly Koza Furikae batch</button></nav>
+  <nav class="subnav"><button [class.active]="section()==='individual'" (click)="section.set('individual')">Card, PayPay &amp; real-time debit</button><button [class.active]="section()==='koza'" (click)="section.set('koza')">Future Koza Furikae debits</button></nav>
+
   @if(section()==='individual'){
     <div class="product-note"><span>Immediate or authorization</span><p>Card and PayPay support immediate sale or authorization followed by capture. Real-time bank debit uses its own immediate execution path.</p></div>
     <div class="layout">
@@ -19,7 +20,27 @@
       }
     </div>
   }@else{
-    <section class="koza"><div><p class="eyebrow">Koza Furikae Select · 口座振替（セレクト）</p><h2>Monthly debit batch</h2><p>Each included mandate creates its own EntryTranBankaccount and ExecTranBankaccount payment thread. REQSUCCESS means scheduled—not paid. PAYSUCCESS or PAYFAIL arrives later.</p></div><div class="schedule"><div><span>Monthly cycle</span><strong>September 2026</strong></div><div><span>Submit requests by</span><strong>15 Sep</strong></div><div><span>Actual bank debit</span><strong>27 Sep</strong></div><div><span>Results expected</span><strong>30 Sep</strong></div></div><label>Batch reference<input [(ngModel)]="batchReference"></label><div class="koza-table"><div class="koza-head"><span>Customer</span><span>Registered mandate</span><span>Amount</span><span>Status</span></div>@for(item of instruments();track item.instrumentId){@if(item.method==='KOZA_FURIKAE_SELECT'){<div><span><input type="checkbox" [checked]="selectedKoza().has(item.instrumentId)" (change)="toggleKoza(item.instrumentId,$any($event.target).checked)"> {{ item.customerName }}<small>{{ item.customerCode }}</small></span><span>{{ item.maskedDisplay }}</span><span>JPY 10,000</span><span><i>Ready</i></span></div>}}</div><div class="batch-actions"><span>{{ selectedKoza().size }} debit request(s) selected</span><button (click)="submitKoza()" [disabled]="submitting()||!selectedKoza().size">{{ submitting()?'Submitting…':'Review monthly batch' }}</button></div><p class="batch-note">No mandates are selected by default. Submission requires typing the exact batch reference. Async results use the same transaction inbox shown under API &amp; Webhooks.</p></section>
+    <section class="koza">
+      <div class="koza-intro"><p class="eyebrow">Koza Furikae · future premiums only</p><h2>Submit bank debit requests</h2><p>The checkout registers the mandate and handles the first premium separately by Furikomi. This workspace is only for later monthly debits. A successful submission means <em>scheduled</em>; the bank later sends PAYSUCCESS or PAYFAIL asynchronously.</p></div>
+      <div class="lifecycle" aria-label="Koza payment lifecycle"><div class="done"><span>1</span><p>Mandate registered<small>Customer checkout</small></p></div><b>→</b><div class="separate"><span>2</span><p>First premium by Furikomi<small>Separate CIT transaction</small></p></div><b>→</b><div><span>3</span><p>Future Koza debit<small>API or monthly batch</small></p></div><b>→</b><div><span>4</span><p>Async bank result<small>PAYSUCCESS / PAYFAIL</small></p></div></div>
+
+      <nav class="mode-tabs"><button [class.active]="kozaMode()==='api'" (click)="kozaMode.set('api')">Single API request</button><button [class.active]="kozaMode()==='batch'" (click)="kozaMode.set('batch')">Monthly batch</button></nav>
+      <label>Requested debit date (YYYYMMDD)<input [(ngModel)]="kozaTargetDate" inputmode="numeric" maxlength="8"></label>
+
+      @if(kozaMode()==='api'){
+        <form class="koza-api" (submit)="$event.preventDefault();submitKozaApi()">
+          <label>Registered mandate<select [(ngModel)]="kozaInstrumentId" name="kozaInstrument">@for(item of kozaInstruments();track item.instrumentId){<option [value]="item.instrumentId">{{ item.customerName }} · {{ item.maskedDisplay }}</option>}</select></label>
+          <div class="two"><label>Amount (JPY)<input [(ngModel)]="kozaAmount" name="kozaAmount" type="number" min="1"></label><label>Merchant reference<input [(ngModel)]="kozaReference" name="kozaReference"></label></div>
+          <button type="submit" [disabled]="submitting()||!kozaInstrumentId">{{ submitting()?'Submitting…':'Review API debit request' }}</button>
+          <p class="batch-note">This sends EntryTranBankaccount followed by ExecTranBankaccount now. No money is marked paid until the asynchronous result is received.</p>
+        </form>
+      }@else{
+        <label>Batch reference<input [(ngModel)]="batchReference"></label>
+        <div class="koza-table"><div class="koza-head"><span>Customer</span><span>Registered mandate</span><span>Amount (JPY)</span><span>Status</span></div>@for(item of kozaInstruments();track item.instrumentId){<div><span><input type="checkbox" [checked]="selectedKoza().has(item.instrumentId)" (change)="toggleKoza(item.instrumentId,$any($event.target).checked)"> {{ item.customerName }}<small>{{ item.customerCode }}</small></span><span>{{ item.maskedDisplay }}</span><span><input class="amount-input" type="number" min="1" [ngModel]="batchAmounts[item.instrumentId]" (ngModelChange)="setBatchAmount(item.instrumentId,$event)" [disabled]="!selectedKoza().has(item.instrumentId)"></span><span><i>Mandate ready</i></span></div>}</div>
+        <div class="batch-actions"><span>{{ selectedKoza().size }} independent debit request(s) selected</span><button (click)="submitKozaBatch()" [disabled]="submitting()||!selectedKoza().size">{{ submitting()?'Submitting…':'Review monthly batch' }}</button></div>
+        <p class="batch-note">Each selected row creates a separate linked MIT transaction. The batch groups submissions for operations; it does not combine customer funds or bank results.</p>
+      }
+    </section>
   }
   @if(message()){<p class="message" role="status">{{ message() }}</p>}
 </section>

@@ -55,7 +55,7 @@ Provider DTOs must stop at `adapter-gmo`. Controllers must not contain GMO comma
 
 ## 4. Durable transaction model
 
-`payment_transaction` is the root financial thread. Its current canonical state is a projection; immutable `payment_event` rows are the evidence. Refund, reversal, chargeback, capture, inquiry, retry, webhook, and reconciliation events append to the root thread. Linked resources retain their own local and provider identifiers.
+`payment_transaction` is one financial or mandate action, and `root_transaction_id` links actions that belong to one customer journey. Its current canonical state is a projection; immutable `payment_event` rows are the evidence. Refund, reversal, chargeback, capture, inquiry, retry, webhook, and reconciliation events append to that family thread. A Koza checkout therefore creates a no-charge `MANDATE_REGISTRATION` row and a separate amount-bearing `FIRST_PREMIUM` Furikomi row. Every later `RECURRING_DEBIT` is another linked MIT row rather than a mutation of either earlier action.
 
 Minimum persistence concepts:
 
@@ -104,10 +104,12 @@ Automatic retry is restricted to authenticated, read-only inquiries. It uses bou
 Inbound webhooks are optional but, when enabled, are authenticated/validated, durably deduplicated, linked to the transaction, and acknowledged promptly. Business application can occur immediately after durable receipt or asynchronously depending on the GMO protocol contract.
 
 GMO notification schemas are product-specific. Cash webhooks link by provider
-`accessId` and use events such as `CASH_PAID`; they do not include an order ID or
-generic status. The persistence adapter resolves the stored order reference for
-CSRF validation, then applies the event to the same root transaction projection
-and appends immutable notification evidence.
+`accessId` and use events such as `CASH_PAID`; they do not include an order ID,
+generic status, or cumulative paid amount. Before taking SQLite's writer lock,
+the GMO adapter performs the retry-safe `/order/inquiry` read. The projection is
+`PARTIALLY_PAID` while cumulative deposits are below the requested Furikomi
+amount and `PAID` only when the requested amount is met. The callback plus the
+sanitized authoritative inquiry are appended as immutable evidence.
 
 Browser returns are navigation signals, not conclusive financial evidence. If the result is missing or ambiguous, the UI displays a pending state while the backend performs inquiry.
 
@@ -224,8 +226,9 @@ Spring -> SQLite -> reusable PayPay instrument + complete thread
 
 ```text
 Checkout: register Koza mandate -> authoritative result inquiry
-          -> create first-premium Furikomi instructions
-Monthly:  operator batch -> one GMO debit request per selected mandate
+          -> create a separately identified first-premium Furikomi transaction
+          -> customer transfers the exact first-premium amount
+Monthly:  operator API or batch -> one GMO debit request per mandate
           -> async webhook and/or SFTP results update each original thread
 ```
 

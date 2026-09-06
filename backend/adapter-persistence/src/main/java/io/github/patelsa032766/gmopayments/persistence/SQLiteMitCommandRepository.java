@@ -118,6 +118,7 @@ public class SQLiteMitCommandRepository implements MitCommandRepository {
                     UPDATE payment_transaction
                     SET canonical_state=:state, provider_order_id=:orderId, provider_access_id=:accessId,
                         provider_status=:providerStatus, requires_attention=:attention,
+                        settled_amount_jpy=CASE WHEN :state='PAID' THEN amount_jpy ELSE settled_amount_jpy END,
                         updated_at=:updatedAt, version=version+1
                     WHERE id=:id
                     """).param("state", result.canonicalState()).param("orderId", result.providerOrderId())

@@ -100,6 +100,30 @@ export class CheckoutPage implements OnInit {
     return monograms[method.code] ?? method.code.slice(0, 6).toUpperCase();
   }
 
+  /** Returns the separately persisted first-premium transfer in a Koza journey. */
+  protected firstPayment(): Record<string, unknown> | null {
+    const value = this.submission()?.instructions?.['firstPayment'];
+    return value && typeof value === 'object' ? value as Record<string, unknown> : null;
+  }
+
+  protected transferInstructions(): Record<string, unknown> | null {
+    const first = this.firstPayment();
+    const root = first?.['instructions'] ?? this.submission()?.instructions;
+    if (!root || typeof root !== 'object') return null;
+    const result = root as Record<string, unknown>;
+    const bank = result['bankTransferPaymentInformation'];
+    return bank && typeof bank === 'object' ? bank as Record<string, unknown> : result;
+  }
+
+  protected instruction(...keys: string[]): string {
+    const details = this.transferInstructions();
+    for (const key of keys) {
+      const value = details?.[key];
+      if (value !== undefined && value !== null && String(value).trim()) return String(value);
+    }
+    return '—';
+  }
+
   private loadMethods(): void {
     this.loading.set(true);
     this.api.getBrowserConfiguration().subscribe({
@@ -203,6 +227,6 @@ export class CheckoutPage implements OnInit {
   }
 
   private isCustomerSuccess(state: string): boolean {
-    return ['AUTHORIZED', 'PAID', 'INSTRUCTIONS_ISSUED', 'MANDATE_REGISTERED_TRANSFER_DUE'].includes(state);
+    return ['AUTHORIZED', 'PAID', 'INSTRUCTIONS_ISSUED', 'MANDATE_REGISTERED'].includes(state);
   }
 }

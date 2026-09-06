@@ -5,8 +5,8 @@ import { PaymentSubmission } from './checkout-api.service';
 
 export interface TransactionSummary {
   transactionId: string; rootTransactionId: string | null; applicationNumber: string | null;
-  amountJpy: number; canonicalState: string; method: string; productCode: string;
-  initiationType: string; operation: string; customerName: string; customerCode: string;
+  amountJpy: number; settledAmountJpy: number; canonicalState: string; method: string; productCode: string;
+  initiationType: string; operation: string; transactionRole: string; customerName: string; customerCode: string;
   merchantReference: string; updatedAt: string; requiresAttention: boolean;
 }
 export interface TimelineEvent {
@@ -52,6 +52,10 @@ export class OperationsApiService {
   }
   submitKozaBatch(request:Record<string,unknown>,operatorToken:string):Observable<KozaBatchSubmission>{
     return this.http.post<KozaBatchSubmission>('/api/v1/mit/koza-batches',request,
+      {headers:{'X-Operator-Token':operatorToken,'X-Operator-Id':'payment-operator'}});
+  }
+  submitKozaDebit(request:Record<string,unknown>,operatorToken:string):Observable<PaymentSubmission>{
+    return this.http.post<PaymentSubmission>('/api/v1/mit/koza-debits',request,
       {headers:{'X-Operator-Token':operatorToken,'X-Operator-Id':'payment-operator'}});
   }
 }

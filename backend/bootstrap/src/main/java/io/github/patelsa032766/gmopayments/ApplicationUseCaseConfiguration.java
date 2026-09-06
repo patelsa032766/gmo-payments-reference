@@ -7,6 +7,7 @@ import io.github.patelsa032766.gmopayments.application.port.PaymentGateway;
 import io.github.patelsa032766.gmopayments.application.port.BrowserPaymentConfigurationProvider;
 import io.github.patelsa032766.gmopayments.application.port.InboundMessageConfigurationProvider;
 import io.github.patelsa032766.gmopayments.application.port.InboundMessageRepository;
+import io.github.patelsa032766.gmopayments.application.port.InboundPaymentMessageResolver;
 import io.github.patelsa032766.gmopayments.application.service.BrowserPaymentConfigurationService;
 import io.github.patelsa032766.gmopayments.application.service.CheckoutPaymentService;
 import io.github.patelsa032766.gmopayments.application.service.CheckoutEligibilityService;
@@ -64,8 +65,9 @@ public class ApplicationUseCaseConfiguration {
 
     @Bean
     InboundMessageService inboundMessageService(InboundMessageRepository repository,
-                                                InboundMessageConfigurationProvider configuration) {
-        return new InboundMessageService(repository, configuration);
+                                                InboundMessageConfigurationProvider configuration,
+                                                InboundPaymentMessageResolver resolver) {
+        return new InboundMessageService(repository, configuration, resolver);
     }
 
     @Bean ConfigurationAdministrationService configurationAdministrationService(ConfigurationAdministrationRepository repository) {

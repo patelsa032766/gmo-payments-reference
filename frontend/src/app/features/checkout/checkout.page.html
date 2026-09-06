@@ -59,19 +59,26 @@
       <section class="confirmation" aria-labelledby="confirmation-title">
         <div class="confirmation-hero">
           <span class="confirmation-check" aria-hidden="true">✓</span>
-          <div><p class="eyebrow">Confirmation</p><h1 id="confirmation-title">{{ submission()?.state === 'INSTRUCTIONS_ISSUED' || submission()?.state === 'MANDATE_REGISTERED_TRANSFER_DUE' ? 'Payment instructions ready.' : 'Payment successful.' }}</h1>
-            <p>{{ submission()?.state === 'MANDATE_REGISTERED_TRANSFER_DUE' ? 'Koza Furikae is registered for monthly premiums. Use the bank-transfer instructions below for the first premium.' : 'Your first payment step completed successfully.' }}</p></div>
+          <div><p class="eyebrow">Confirmation</p><h1 id="confirmation-title">{{ submission()?.state === 'MANDATE_REGISTERED' ? 'Monthly bank debit registered.' : submission()?.state === 'INSTRUCTIONS_ISSUED' ? 'Payment instructions ready.' : 'Payment successful.' }}</h1>
+            <p>{{ submission()?.state === 'MANDATE_REGISTERED' ? 'Your Koza Furikae mandate is ready for future monthly premiums. Your first premium is a separate bank transfer and is not yet paid.' : 'Your first payment step completed successfully.' }}</p></div>
         </div>
-        <dl>
+        <dl class="confirmation-summary">
           <div><dt>Application</dt><dd>{{scenario()?.applicationNumber}}</dd></div>
           <div><dt>Payment method</dt><dd>{{ selectedMethod()?.label }}</dd></div>
-          <div><dt>Amount</dt><dd>{{ amountJpy() | currency:'JPY':'code':'1.0-0' }}</dd></div>
-          <div><dt>Reference</dt><dd>{{ submission()?.transactionId }}</dd></div>
-        </dl>
-        @if (submission()?.instructions; as instructions) {
-          @if (instructions['bank']) {
-            <dl><div><dt>Bank</dt><dd>{{ instructions['bank'] }}</dd></div><div><dt>Branch</dt><dd>{{ instructions['branch'] }}</dd></div><div><dt>Account</dt><dd>{{ instructions['accountNumber'] }}</dd></div><div><dt>Deadline</dt><dd>{{ instructions['deadline'] }}</dd></div></dl>
+          @if(submission()?.state === 'MANDATE_REGISTERED') {
+            <div><dt>Mandate status</dt><dd>Registered</dd></div><div><dt>Mandate reference</dt><dd>{{ submission()?.transactionId }}</dd></div>
+          } @else {
+            <div><dt>Amount</dt><dd>{{ amountJpy() | currency:'JPY':'code':'1.0-0' }}</dd></div><div><dt>Reference</dt><dd>{{ submission()?.transactionId }}</dd></div>
           }
+        </dl>
+        @if (firstPayment(); as payment) {
+          <section class="first-payment" aria-labelledby="first-payment-title">
+            <div><p class="eyebrow">First premium · Furikomi</p><h2 id="first-payment-title">Bank transfer required</h2><p>Transfer the exact amount below. Koza Furikae begins with a future monthly collection; it does not pay this first premium.</p></div>
+            <dl><div><dt>Amount due</dt><dd>{{ amountJpy() | currency:'JPY':'code':'1.0-0' }}</dd></div><div><dt>Payment status</dt><dd>Awaiting transfer</dd></div><div><dt>First-payment reference</dt><dd>{{ payment['transactionId'] }}</dd></div><div><dt>Provider reference</dt><dd>{{ payment['providerOrderId'] }}</dd></div></dl>
+            <dl class="bank-instructions"><div><dt>Bank</dt><dd>{{ instruction('bankName','bank') }}</dd></div><div><dt>Branch</dt><dd>{{ instruction('branchName','branch') }} {{ instruction('branchCode') }}</dd></div><div><dt>Account type</dt><dd>{{ instruction('accountType') }}</dd></div><div><dt>Account number</dt><dd>{{ instruction('accountNumber') }}</dd></div><div><dt>Account holder</dt><dd>{{ instruction('accountHolderName','accountName') }}</dd></div><div><dt>Deadline</dt><dd>{{ instruction('paymentTerm','paymentExpiryDateTime','deadline') }}</dd></div></dl>
+          </section>
+        } @else if (transferInstructions()) {
+          <dl class="bank-instructions"><div><dt>Bank</dt><dd>{{ instruction('bankName','bank') }}</dd></div><div><dt>Branch</dt><dd>{{ instruction('branchName','branch') }}</dd></div><div><dt>Account</dt><dd>{{ instruction('accountNumber') }}</dd></div><div><dt>Deadline</dt><dd>{{ instruction('paymentTerm','paymentExpiryDateTime','deadline') }}</dd></div></dl>
         }
         @if (warning()) { <p class="confirmation-warning" role="status">{{ warning() }}</p> }
         <div class="actions"><button class="secondary-button" type="button" (click)="startAgain()">Choose another method</button></div>

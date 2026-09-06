@@ -6,8 +6,10 @@ import io.github.patelsa032766.gmopayments.application.service.CheckoutExperienc
 import io.github.patelsa032766.gmopayments.application.service.CapturePaymentService;
 import io.github.patelsa032766.gmopayments.application.service.PaymentOperationsQueryService;
 import io.github.patelsa032766.gmopayments.application.service.InboundMessageService;
+import io.github.patelsa032766.gmopayments.application.service.KozaBatchService;
 import io.github.patelsa032766.gmopayments.web.OperatorActionGuard;
 import io.github.patelsa032766.gmopayments.domain.PaymentMethodCode;
+import io.github.patelsa032766.gmopayments.domain.KozaBatchItemRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 
 @SpringBootTest(properties = {
@@ -44,6 +47,9 @@ class GmoPaymentsApplicationTest {
 
     @Autowired
     private InboundMessageService inboundMessages;
+
+    @Autowired
+    private KozaBatchService kozaBatches;
 
     @Test
     void contextLoadsWithMigratedSQLiteConfiguration() {
@@ -122,7 +128,28 @@ class GmoPaymentsApplicationTest {
         assertThat(operations.getTransactionThread(instructions.transactionId())
                 .transaction().canonicalState()).isEqualTo("PAID");
         assertThat(operations.getTransactionThread(instructions.transactionId())
+                .transaction().settledAmountJpy()).isEqualTo(7_500);
+        assertThat(operations.getTransactionThread(instructions.transactionId())
                 .events()).extracting("eventType").contains("PROVIDER_NOTIFICATION");
+    }
+
+    @Test
+    void kozaApiStyleSubmissionCreatesAnAmountBearingRecurringDebitThread() {
+        var mandate = operations.listActiveInstruments().stream()
+                .filter(instrument -> instrument.method() == PaymentMethodCode.KOZA_FURIKAE_SELECT)
+                .findFirst().orElseThrow();
+        String reference = "API-TEST-" + UUID.randomUUID();
+
+        var submission = kozaBatches.submit(reference, 2026, 10, "20261027",
+                "API submission", "20261027", "test-operator",
+                List.of(new KozaBatchItemRequest(mandate.instrumentId(), 12_345)));
+
+        var transaction = operations.getTransactionThread(submission.payments().getFirst().transactionId())
+                .transaction();
+        assertThat(transaction.canonicalState()).isEqualTo("SCHEDULED");
+        assertThat(transaction.transactionRole()).isEqualTo("RECURRING_DEBIT");
+        assertThat(transaction.amountJpy()).isEqualTo(12_345);
+        assertThat(transaction.settledAmountJpy()).isZero();
     }
 
     @Test

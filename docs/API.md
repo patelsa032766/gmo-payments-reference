@@ -64,7 +64,7 @@ GET /api/v1/checkout/payments/{transactionId}
 | Card | `token`, `holderName` | Published CIT policy chooses `AUTH` or immediate `CAPTURE`; a successful monthly-plan charge is stored, while a one-time plan stops after the charge |
 | PayPay | No sensitive account input | One-time plans call `/wallet/charge`; monthly plans run recurring consent, inquiry, then a separately identified first on-file charge |
 | Real-time bank debit | Bank/account registration fields required by enabled contract | Registration form post, inquiry, immediate debit |
-| Koza Furikae | Registration bank fields | Registration form post, inquiry, then first-premium Furikomi instructions |
+| Koza Furikae | Registration bank fields | Registration form post and inquiry create a no-charge mandate row; a distinct linked Furikomi row contains the first-premium amount and instructions |
 | Kombini | Customer/contact and store code | Instructions issued |
 | Pay-easy | Customer/contact fields | Instructions issued |
 | Furikomi | Customer/contact fields | Bank-transfer instructions issued |
@@ -114,7 +114,7 @@ GET /api/v1/operations/transactions
 GET /api/v1/operations/transactions/{transactionId}
 ```
 
-The list returns current projections. The detail response returns the root transaction, ordered events, and sanitized provider exchanges. One lifecycle event may own several ordered exchanges—for example, real-time Bank Direct performs `SearchBankDirect`, amount-bearing `EntryTranBankDirect`, and `ExecTranBankDirect`. The operator UI exposes each call rather than collapsing the event to its first exchange. Every later refund, chargeback, webhook, inquiry, retry, browser return, and SFTP match is appended to the same root thread instead of appearing as an unrelated payment.
+The list returns current projections, including `transactionRole`, requested `amountJpy`, and cumulative `settledAmountJpy`. The detail response returns the selected transaction's complete linked family, ordered events, and sanitized provider exchanges. One lifecycle event may own several ordered exchanges—for example, real-time Bank Direct performs `SearchBankDirect`, amount-bearing `EntryTranBankDirect`, and `ExecTranBankDirect`. The operator UI exposes each call rather than collapsing the event to its first exchange. Every later refund, chargeback, webhook, inquiry, retry, browser return, and SFTP match remains in that family.
 
 ### Capture an authorization
 
@@ -161,9 +161,28 @@ Content-Type: application/json
 }
 ```
 
-Card and PayPay let the operator choose `AUTH` (“Authorize, capture later”) or `CAPTURE` (“Immediate sale”). The backend rejects `AUTH` for every other method even if a caller bypasses Angular. Real-time bank debit performs an individual immediate debit. Koza instruments are intentionally rejected here and must use the batch endpoint.
+Card and PayPay let the operator choose `AUTH` (“Authorize, capture later”) or `CAPTURE` (“Immediate sale”). The backend rejects `AUTH` for every other method even if a caller bypasses Angular. Real-time bank debit performs an individual immediate debit. Koza instruments use the dedicated single-request or batch endpoints below because their result is asynchronous.
+
+## Future Koza debit by API
+
+```http
+POST /api/v1/mit/koza-debits
+X-Operator-Token: local-operator-token
+Content-Type: application/json
+
+{
+  "instrumentId": "PM-KOZA_FURIKAE_SELECT-...",
+  "amountJpy": 20000,
+  "merchantReference": "PREMIUM-202610-CUST-10044",
+  "targetDate": "20261027"
+}
+```
+
+This submits one `EntryTranBankaccount` plus `ExecTranBankaccount` pair and returns the local payment thread. `SCHEDULED`/`REQSUCCESS` means GMO accepted the debit request; it does not mean funds were collected. The linked transaction becomes `PAID` only after `PAYSUCCESS`, or `FAILED` after `PAYFAIL`, from the configured protocol notification or reconciliation source.
 
 ## Monthly Koza batch
+
+The batch accepts the same amount-bearing request items as the single API. Each item becomes an independent `RECURRING_DEBIT` transaction linked to its mandate; the batch is only an operational grouping.
 
 ```http
 POST /api/v1/mit/koza-batches
@@ -211,8 +230,11 @@ Cash notifications use GMO's product-specific event contract. For example:
 
 Because this payload omits `orderId`, the receiver resolves `accessId` to the
 persisted provider order before validating the CSRF token. When a generic
-`status` field is absent, `event` is the provider status. `CASH_PAID` maps to
-canonical `PAID`, while duplicate deliveries remain idempotent.
+`status` field is absent, `event` is the provider status. A `CASH_PAID`
+notification is deliberately not treated as proof that the requested total was
+paid: the backend performs a retry-safe `/order/inquiry`, persists GMO's
+cumulative deposit amount, and maps the thread to `PARTIALLY_PAID` or `PAID`.
+Duplicate deliveries remain idempotent.
 
 Legacy protocol notification:
 

@@ -120,6 +120,7 @@ public class SQLiteInboundMessageRepository implements InboundMessageRepository 
     private void applyToTransaction(TransactionLink link, InboundPaymentMessage message) {
         String providerStatus = blank(message.providerStatus()) ? "NOTIFIED" : message.providerStatus().trim();
         String canonicalState = canonicalState(providerStatus);
+        long reportedSettledAmount = longValue(message.sanitizedPayload().get("settledAmountJpy"));
         boolean attention = requiresAttention(canonicalState);
         String now = Instant.now().toString();
         jdbc.sql("""
@@ -128,10 +129,16 @@ public class SQLiteInboundMessageRepository implements InboundMessageRepository 
                     provider_order_id = COALESCE(:orderId, provider_order_id),
                     provider_access_id = COALESCE(:accessId, provider_access_id),
                     provider_status = :providerStatus, requires_attention = :attention,
+                    settled_amount_jpy = CASE
+                        WHEN :reportedSettled > 0 THEN :reportedSettled
+                        WHEN :state = 'PAID' THEN amount_jpy
+                        ELSE settled_amount_jpy
+                    END,
                     version = version + 1, updated_at = :updatedAt
                 WHERE id = :id
                 """).param("state", canonicalState).param("orderId", message.providerOrderId())
                 .param("accessId", message.providerAccessId()).param("providerStatus", providerStatus)
+                .param("reportedSettled", reportedSettledAmount)
                 .param("attention", attention).param("updatedAt", now).param("id", link.id()).update();
         // If this transaction belongs to a Koza monthly batch, project the
         // asynchronous bank result onto the local batch row as well. The
@@ -163,7 +170,8 @@ public class SQLiteInboundMessageRepository implements InboundMessageRepository 
                 VALUES (:eventId, :transactionId, 'PROVIDER_NOTIFICATION', 'GMO_WEBHOOK',
                         :summary, :state, 'gmo', :correlationId, :evidence, :occurredAt)
                 """).param("eventId", eventId).param("transactionId", link.id())
-                .param("summary", "GMO reported " + providerStatus).param("state", canonicalState)
+                .param("summary", notificationSummary(providerStatus, message.sanitizedPayload()))
+                .param("state", canonicalState)
                 .param("correlationId", correlationId).param("evidence", json(message.sanitizedPayload()))
                 .param("occurredAt", message.receivedAt().toString()).update();
         long eventPk = jdbc.sql("SELECT id FROM payment_event WHERE event_id = :eventId")
@@ -185,8 +193,11 @@ public class SQLiteInboundMessageRepository implements InboundMessageRepository 
             case "AUTH", "AUTHENTICATED", "AUTHORIZED" -> "AUTHORIZED";
             case "CAPTURE", "CAPTURED", "SALES", "PAID", "PAYSUCCESS",
                     "CASH_PAID", "WALLET_PAID" -> "PAID";
+            case "PARTIALLY_PAID", "PARTIAL_PAYMENT" -> "PARTIALLY_PAID";
+            case "TRADING", "REQSUCCESS", "INSTRUCTIONS_ISSUED" ->
+                    "REQSUCCESS".equalsIgnoreCase(providerStatus) ? "SCHEDULED" : "INSTRUCTIONS_ISSUED";
             case "REGISTER", "REGISTERED", "WALLET_ACCEPTED" -> "REGISTERED";
-            case "REQSUCCESS", "REQUEST_ACCEPTED" -> "SCHEDULED";
+            case "REQUEST_ACCEPTED" -> "SCHEDULED";
             case "SEND", "PROCESSING" -> "PROCESSING";
             case "PARTIAL_REFUND", "PARTIALLY_REFUNDED" -> "PARTIALLY_REFUNDED";
             case "REFUND", "REFUNDED", "REFUND_SUCCEEDED" -> "REFUNDED";
@@ -203,6 +214,22 @@ public class SQLiteInboundMessageRepository implements InboundMessageRepository 
             case "FAILED", "CHARGED_BACK", "UNKNOWN" -> true;
             default -> false;
         };
+    }
+
+    private static String notificationSummary(String providerStatus, Map<String, Object> payload) {
+        long settled = longValue(payload.get("settledAmountJpy"));
+        long requested = longValue(payload.get("requestedAmountJpy"));
+        if (settled > 0 && requested > 0) {
+            return "GMO reported cumulative Furikomi receipts of JPY " + settled
+                    + " against JPY " + requested;
+        }
+        return "GMO reported " + providerStatus;
+    }
+
+    private static long longValue(Object value) {
+        if (value instanceof Number number) return number.longValue();
+        try { return value == null ? 0 : Long.parseLong(String.valueOf(value)); }
+        catch (NumberFormatException ignored) { return 0; }
     }
 
     private static String json(Map<String, Object> value) {

@@ -18,7 +18,9 @@ substituting a simulated success.
 - Method-specific checkout accordion for enabled and disabled method configurations.
 - GMO OpenAPI and idPass adapters for Card, PayPay, real-time bank debit, Koza Furikae Select, Kombini, Pay-easy, and Furikomi.
 - Card authorization plus store-card; PayPay account authorization plus first authorization; real-time bank registration plus immediate debit.
-- Combined Koza registration plus first-premium Furikomi instruction journey.
+- One customer-facing Koza journey that creates two linked records: a
+  no-charge mandate registration and a separately amount-bearing first-premium
+  Furikomi instruction/payment thread.
 - Saved-method Primary/Backup preferences; Card/PayPay MIT immediate-sale or auth/capture choice; individual bank debit; and monthly Koza batch submission.
 - Contextual Card/PayPay capture on authorized transaction threads using GMO `/order/capture`, operator authentication, idempotency, and unknown-outcome protection.
 - Chronological transaction thread with paired outbound request/inbound response evidence.
@@ -53,7 +55,9 @@ Additionally verify in simulation mode:
 3. The new transaction appears first in `/operations` with customer and provider events.
 4. Configuration creates a draft, can discard it, and publishes under the same global operator-token policy used by capture, MIT, payment-order, batch, and reconciliation actions.
 5. MIT shows Primary and Backup and rejects the same instrument in both roles.
-6. Koza items can be selected and submitted only through the monthly batch workflow.
+6. A registered Koza instrument can be submitted either as a single API debit
+   or as an item in the monthly batch workflow. Both create amount-bearing MIT
+   threads and wait for the asynchronous `PAYSUCCESS`/`PAYFAIL` result.
 7. Disabled webhooks return 404 and disabled SFTP makes no connection.
 8. No `.env.local`, database/WAL, private key, tunnel config, or downloaded reconciliation file is tracked.
 
