@@ -126,8 +126,8 @@ export class OperationsPage implements OnInit {
     if(this.operatorTokenRequired()&&!this.operatorToken){this.actionMessage.set('Enter the operator token to refresh this transaction.');return;}
     this.refreshing.set(true);this.actionMessage.set(null);
     this.api.refreshFromProvider(selected!.transaction.transactionId,this.operatorToken).subscribe({
-      next:result=>{this.refreshing.set(false);this.actionMessage.set(`${result.state} · Status refreshed from GMO.`);this.refreshSelected(selected!.transaction.transactionId);},
-      error:()=>{this.refreshing.set(false);this.actionMessage.set('GMO status could not be refreshed. Review the latest event and try again.');}
+      next:result=>{this.refreshing.set(false);this.actionMessage.set(`${result.state} · Local status reconciled using a read-only GMO inquiry.`);this.refreshSelected(selected!.transaction.transactionId);},
+      error:()=>{this.refreshing.set(false);this.actionMessage.set('GMO status could not be checked. No payment request was sent; review the latest event and try again.');}
     });
   }
   private refreshSelected(transactionId:string):void{

@@ -193,7 +193,7 @@ protocol notification URL and sets `X-Webhook-Ingress-Token` to the same value
 as `GMO_WEBHOOK_INGRESS_TOKEN`. Also enable the URL under GMO Shop Management
 → Payment Result Notification Settings. If a notification was emitted before
 the route was repaired, GMO may not replay it. Select the scheduled Koza debit
-in API & Webhooks and use **Refresh from GMO**; the application calls the
+in API & Webhooks and use **Check status with GMO**; the application calls the
 read-only `SearchTradeMulti.idPass` inquiry (`PayType=28`) and records the
 result as inquiry evidence rather than pretending a webhook arrived.
 

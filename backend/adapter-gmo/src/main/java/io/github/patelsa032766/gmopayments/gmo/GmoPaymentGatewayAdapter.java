@@ -165,7 +165,7 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
         };
         return new PaymentGatewayResult(canonical, providerStatus, inquiry.providerOrderId(),
                 first(response.rawPayload(), "AccessID", "AccessId"),
-                "PROVIDER_STATUS_INQUIRY", "Status refreshed from GMO", "UNKNOWN".equals(canonical),
+                "PROVIDER_STATUS_INQUIRY", "Provider status checked with GMO", "UNKNOWN".equals(canonical),
                 PaymentNextAction.none(), Map.of(), "IDPASS", "SearchTradeMulti",
                 "SearchTradeMulti.idPass", response.statusCode(), safeInt(response.durationMs()),
                 GmoSanitizer.sanitize(asObjectMap(request)), response.sanitizedPayload());
