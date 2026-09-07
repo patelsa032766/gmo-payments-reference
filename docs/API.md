@@ -196,6 +196,15 @@ Content-Type: application/json
 
 This submits one `EntryTranBankaccount` plus `ExecTranBankaccount` pair and returns the local payment thread. `SCHEDULED`/`REQSUCCESS` means GMO accepted the debit request; it does not mean funds were collected. The linked transaction becomes `PAID` only after `PAYSUCCESS`, or `FAILED` after `PAYFAIL`, from the configured protocol notification or reconciliation source.
 
+GMO limits the customer-facing `Remarks` billing description to 15 permitted
+upper-case ASCII/kana characters. Java derives a safe short description from
+the merchant reference and sends the complete reference separately in
+`ClientField1`. The MIT page generates a collision-resistant reference for each
+new submission; a reference already reserved in SQLite is never silently reused.
+In live-call mode, prototype seed instruments are omitted and rejected by the
+provider adapter—only mandates verified through the current sandbox enrollment
+flow can be submitted.
+
 ## Monthly Koza batch
 
 The batch accepts the same amount-bearing request items as the single API. Each item becomes an independent `RECURRING_DEBIT` transaction linked to its mandate; the batch is only an operational grouping.
@@ -210,7 +219,7 @@ Content-Type: application/json
   "batchReference": "KOZA-2026-09",
   "cycleYear": 2026,
   "cycleMonth": 9,
-  "targetDate": "27",
+  "targetDate": "20260927",
   "submissionCutoffAt": "2026-09-20T08:00:00Z",
   "expectedResultDate": "2026-09-29",
   "items": [

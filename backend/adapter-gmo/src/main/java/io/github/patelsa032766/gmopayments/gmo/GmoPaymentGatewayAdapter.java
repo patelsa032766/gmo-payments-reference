@@ -79,6 +79,10 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
     public PaymentContinuationResult executeKozaDebit(PaymentExecutionContext context,
                                                        Map<String, Object> instrument,
                                                        String targetDate, String remarks) {
+        if (properties.isLiveCallsEnabled() && Boolean.TRUE.equals(instrument.get("prototype"))) {
+            throw new IllegalArgumentException(
+                    "Prototype Koza mandates cannot be submitted to GMO; select a mandate registered in this sandbox");
+        }
         if (!properties.isLiveCallsEnabled()) {
             return single(new PaymentGatewayResult("SCHEDULED", "REQSUCCESS", context.applicationNumber(),
                     "simulated-" + context.transactionId(), "KOZA_REQUEST_ACCEPTED",

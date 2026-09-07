@@ -239,6 +239,13 @@ Monthly:  operator API or batch -> one GMO debit request per mandate
           -> async webhook and/or SFTP results update each original thread
 ```
 
+Operator references and GMO's printed billing description are deliberately
+separate. The former remains complete in `ClientField1`; `Remarks` is normalized
+to GMO's 15-character contract. UI-generated API and batch references include a
+random suffix so page reloads cannot recreate a consumed reference. Seeded demo
+instruments carry explicit `prototype` metadata and cannot cross the live GMO
+adapter boundary.
+
 Koza and real-time bank debit share neither product code nor financial state machine.
 
 ## 14. Known production hardening decisions

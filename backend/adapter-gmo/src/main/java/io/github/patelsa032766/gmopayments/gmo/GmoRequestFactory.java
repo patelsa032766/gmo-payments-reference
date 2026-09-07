@@ -220,11 +220,26 @@ public class GmoRequestFactory {
 
     public Map<String, String> kozaBatchExecution(String orderId, String accessId, String accessPass,
                                                    String memberId, String targetDate, String remarks) {
-        return linkedFields(
+        Map<String, String> fields = linkedFields(
                 "AccessID", accessId, "AccessPass", accessPass, "OrderID", orderId,
                 "SiteID", properties.getSiteId(), "SitePass", properties.getSitePass(),
-                "MemberID", memberId, "TargetDate", targetDate, "Remarks", remarks,
+                "MemberID", memberId, "TargetDate", targetDate,
+                // GMO prints Remarks as the billing description and limits it
+                // to 15 upper-case ASCII/kana characters. Merchant references
+                // are longer operational identifiers, so retain the full value
+                // in a non-customer-facing client field instead.
+                "Remarks", kozaBillingDescription(remarks),
+                "ClientField1", remarks,
                 "CheckMode", "NOCHECK_ACCOUNT");
+        return fields;
+    }
+
+    private static String kozaBillingDescription(String reference) {
+        if (reference == null || reference.isBlank()) return "PREMIUM";
+        String safe = reference.toUpperCase(java.util.Locale.ROOT)
+                .replaceAll("[^A-Z0-9().-]", "");
+        if (safe.isBlank()) return "PREMIUM";
+        return safe.substring(0, Math.min(15, safe.length()));
     }
 
     private Map<String, Object> merchant(String callbackPath, String orderId) {

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { forkJoin } from 'rxjs';
 import { CheckoutApiService, PaymentSubmission } from '../../core/api/checkout-api.service';
 import { OperationsApiService, PaymentInstrument } from '../../core/api/operations-api.service';
 
@@ -16,6 +17,7 @@ export class MitPage implements OnInit {
   protected readonly message=signal<string|null>(null);
   protected readonly submitting=signal(false);
   protected readonly operatorTokenRequired=signal(true);
+  protected readonly liveCallsEnabled=signal(false);
   protected amount=10000;
   protected execution='CAPTURE';
   protected reference=`SUPPORT-${new Date().toISOString().slice(0,10).replaceAll('-','')}-001`;
@@ -23,19 +25,29 @@ export class MitPage implements OnInit {
   protected primaryId='';
   protected backupId='';
   protected readonly selectedKoza=signal<Set<string>>(new Set());
-  protected batchReference=`KOZA-${new Date().toISOString().slice(0,7).replace('-','')}-001`;
+  protected batchReference=this.newReference('KOZA', false);
   protected kozaInstrumentId='';
   protected kozaAmount=10000;
-  protected kozaReference=`KOZA-API-${new Date().toISOString().slice(0,10).replaceAll('-','')}-001`;
+  protected kozaReference=this.newReference('KOZA-API');
   protected kozaTargetDate=this.nextKozaDate();
   protected batchAmounts:Record<string,number>={};
 
   protected readonly selected=computed(()=>this.instruments().find(item=>item.instrumentId===this.selectedId())??null);
-  protected readonly kozaInstruments=computed(()=>this.instruments().filter(item=>item.method==='KOZA_FURIKAE_SELECT'));
+  protected readonly kozaInstruments=computed(()=>this.instruments().filter(item=>
+    item.method==='KOZA_FURIKAE_SELECT' && (!this.liveCallsEnabled() || item.metadata['prototype']!==true)));
 
   ngOnInit():void{
-    this.checkoutApi.getCheckoutExperience().subscribe(settings=>this.operatorTokenRequired.set(settings.operatorTokenRequired));
-    this.reload();
+    forkJoin({
+      experience:this.checkoutApi.getCheckoutExperience(),
+      browser:this.checkoutApi.getBrowserConfiguration()
+    }).subscribe({
+      next:configuration=>{
+        this.operatorTokenRequired.set(configuration.experience.operatorTokenRequired);
+        this.liveCallsEnabled.set(configuration.browser.liveCallsEnabled);
+        this.reload();
+      },
+      error:()=>this.reload()
+    });
   }
 
   protected choose(id:string):void{
@@ -90,7 +102,13 @@ export class MitPage implements OnInit {
     this.submitting.set(true);this.message.set(null);
     this.api.submitKozaDebit({instrumentId:item.instrumentId,amountJpy:this.kozaAmount,
       merchantReference:this.kozaReference,targetDate:this.kozaTargetDate},this.operatorToken).subscribe({
-      next:result=>{this.submitting.set(false);this.result.set(result);this.message.set(`${result.state} · ${result.transactionId}. This is scheduled, not yet paid.`);},
+      next:result=>{
+        this.submitting.set(false);this.result.set(result);
+        this.message.set(result.state==='SCHEDULED'
+          ? `${result.state} · ${result.transactionId}. This is scheduled, not yet paid.`
+          : `${result.state} · ${result.transactionId}. GMO did not schedule this debit; inspect its transaction thread.`);
+        this.kozaReference=this.newReference('KOZA-API');
+      },
       error:response=>{this.submitting.set(false);this.message.set(response?.error?.detail??'The Koza debit request could not be submitted.');}
     });
   }
@@ -108,7 +126,12 @@ export class MitPage implements OnInit {
     this.api.submitKozaBatch({batchReference:this.batchReference,cycleYear:Number(date.slice(0,4)),
       cycleMonth:Number(date.slice(4,6)),targetDate:date,submissionCutoffAt:'Operator submission',
       expectedResultDate:date,items},this.operatorToken).subscribe({
-      next:result=>{this.submitting.set(false);this.selectedKoza.set(new Set());this.message.set(`${result.submittedCount} requests scheduled · ${result.batchId}. Bank results are still pending.`);},
+      next:result=>{
+        this.submitting.set(false);this.selectedKoza.set(new Set());
+        const scheduled=result.payments.filter(payment=>payment.state==='SCHEDULED').length;
+        this.message.set(`${scheduled} of ${result.submittedCount} requests scheduled · ${result.batchId}. Inspect failed threads; bank results for scheduled debits are still pending.`);
+        this.batchReference=this.newReference('KOZA', false);
+      },
       error:()=>{this.submitting.set(false);this.message.set('The Koza batch could not be submitted.');}
     });
   }
@@ -123,8 +146,8 @@ export class MitPage implements OnInit {
       this.instruments.set(items);
       const primary=items.find(i=>i.preferenceRole==='PRIMARY'&&i.method!=='KOZA_FURIKAE_SELECT')??items.find(i=>i.method!=='KOZA_FURIKAE_SELECT');
       if(primary)this.choose(primary.instrumentId);
-      const firstKoza=items.find(i=>i.method==='KOZA_FURIKAE_SELECT');
-      if(firstKoza&&!this.kozaInstrumentId)this.kozaInstrumentId=firstKoza.instrumentId;
+      const firstKoza=this.kozaInstruments()[0];
+      if(firstKoza&&!this.kozaInstruments().some(i=>i.instrumentId===this.kozaInstrumentId))this.kozaInstrumentId=firstKoza.instrumentId;
       this.batchAmounts=Object.fromEntries(items.filter(i=>i.method==='KOZA_FURIKAE_SELECT').map(i=>[i.instrumentId,this.batchAmounts[i.instrumentId]??10000]));
     });
   }
@@ -134,5 +157,13 @@ export class MitPage implements OnInit {
     if(date.getDate()>15)date.setMonth(date.getMonth()+1);
     date.setDate(27);
     return `${date.getFullYear()}${String(date.getMonth()+1).padStart(2,'0')}${String(date.getDate()).padStart(2,'0')}`;
+  }
+
+  /** References are human-readable but must remain unique across reloads. */
+  private newReference(prefix:string, includeDay=true):string{
+    const iso=new Date().toISOString();
+    const date=(includeDay?iso.slice(0,10):iso.slice(0,7)).replaceAll('-','');
+    const nonce=crypto.randomUUID().replaceAll('-','').slice(0,6).toUpperCase();
+    return `${prefix}-${date}-${nonce}`;
   }
 }

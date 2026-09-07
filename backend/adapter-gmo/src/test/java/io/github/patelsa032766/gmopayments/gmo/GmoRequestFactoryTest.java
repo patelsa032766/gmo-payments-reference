@@ -111,11 +111,15 @@ class GmoRequestFactoryTest {
 
     @Test
     void monthlyKozaExecutionUsesTheDocumentedSelectFields() {
+        String merchantReference = "API-KOZA-API-20260907-001";
         var fields = factory.kozaBatchExecution("KOZA-202609-001", "access", "pass",
-                "CUST-1", "20260928", "9ガツホケンリョウ");
+                "CUST-1", "20260928", merchantReference);
         assertThat(fields).containsEntry("MemberID", "CUST-1")
                 .containsEntry("TargetDate", "20260928")
-                .containsEntry("CheckMode", "NOCHECK_ACCOUNT");
+                .containsEntry("CheckMode", "NOCHECK_ACCOUNT")
+                .containsEntry("Remarks", "API-KOZA-API-20")
+                .containsEntry("ClientField1", merchantReference);
+        assertThat(fields.get("Remarks")).hasSizeLessThanOrEqualTo(15);
     }
 
     @Test
