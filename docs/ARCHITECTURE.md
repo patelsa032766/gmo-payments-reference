@@ -116,6 +116,14 @@ whereas a true redelivery resolves to the same cumulative amount and hash.
 
 Browser returns are navigation signals, not conclusive financial evidence. If the result is missing or ambiguous, the UI displays a pending state while the backend performs inquiry.
 
+A missed Koza result notification is recoverable from the selected transaction
+thread. The operator-triggered status refresh uses `SearchTradeMulti.idPass`
+with PayType 28, applies safe-read retry only, and updates the transaction and
+batch-item projections from the authoritative status. Its event source and
+provider transport are `INQUIRY`, never `WEBHOOK`. The database transaction is
+opened only after the GMO call completes, avoiding a SQLite writer lock during
+network I/O.
+
 SFTP reconciliation remains available whether webhooks are on or off:
 
 1. Poll or accept a configured file schedule.

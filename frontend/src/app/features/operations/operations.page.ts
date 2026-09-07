@@ -16,6 +16,7 @@ export class OperationsPage implements OnInit {
   protected readonly selectedExchange = signal<ProviderExchange | null>(null);
   protected readonly loading = signal(true);
   protected readonly capturing = signal(false);
+  protected readonly refreshing = signal(false);
   protected readonly actionMessage = signal<string|null>(null);
   protected readonly failed = signal(false);
   protected readonly operatorTokenRequired = signal(true);
@@ -113,6 +114,20 @@ export class OperationsPage implements OnInit {
         ? 'PAID · Capture recorded in this transaction thread.'
         : `${result.state} · Capture was not completed; review the newest event before another action.`);this.refreshSelected(transaction.transactionId);},
       error:()=>{this.capturing.set(false);this.actionMessage.set('Capture was not completed. Review the latest transaction event before trying again.');this.refreshSelected(transaction.transactionId);}
+    });
+  }
+  protected canRefreshFromProvider(thread:TransactionThread|null=this.thread()):boolean{
+    return !!thread && thread.transaction.method==='KOZA_FURIKAE_SELECT'
+      && ['SCHEDULED','PROCESSING','UNKNOWN'].includes(thread.transaction.canonicalState);
+  }
+  protected refreshFromProvider():void{
+    const selected=this.thread();
+    if(!this.canRefreshFromProvider(selected))return;
+    if(this.operatorTokenRequired()&&!this.operatorToken){this.actionMessage.set('Enter the operator token to refresh this transaction.');return;}
+    this.refreshing.set(true);this.actionMessage.set(null);
+    this.api.refreshFromProvider(selected!.transaction.transactionId,this.operatorToken).subscribe({
+      next:result=>{this.refreshing.set(false);this.actionMessage.set(`${result.state} · Status refreshed from GMO.`);this.refreshSelected(selected!.transaction.transactionId);},
+      error:()=>{this.refreshing.set(false);this.actionMessage.set('GMO status could not be refreshed. Review the latest event and try again.');}
     });
   }
   private refreshSelected(transactionId:string):void{

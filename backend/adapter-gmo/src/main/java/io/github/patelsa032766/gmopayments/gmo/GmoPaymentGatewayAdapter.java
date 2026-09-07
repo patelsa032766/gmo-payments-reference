@@ -5,6 +5,7 @@ import io.github.patelsa032766.gmopayments.domain.PaymentExecutionContext;
 import io.github.patelsa032766.gmopayments.domain.PaymentContinuationResult;
 import io.github.patelsa032766.gmopayments.domain.PaymentGatewayResult;
 import io.github.patelsa032766.gmopayments.domain.PaymentNextAction;
+import io.github.patelsa032766.gmopayments.domain.PaymentInquiryContext;
 import io.github.patelsa032766.gmopayments.domain.ProviderCallEvidence;
 import org.springframework.stereotype.Component;
 
@@ -142,6 +143,32 @@ public class GmoPaymentGatewayAdapter implements PaymentGateway {
                 providerIdempotency(context, "capture"));
         return openApiResult(context, response, request, "/order/capture", "OrderCapture",
                 "Authorization captured");
+    }
+
+    @Override
+    public PaymentGatewayResult inquire(PaymentInquiryContext inquiry) {
+        if (!properties.isLiveCallsEnabled()) {
+            throw new IllegalStateException("Provider inquiry requires GMO live calls to be enabled");
+        }
+        if (inquiry.execution().method()
+                != io.github.patelsa032766.gmopayments.domain.PaymentMethodCode.KOZA_FURIKAE_SELECT) {
+            throw new IllegalArgumentException("Status refresh is currently supported for Koza debits");
+        }
+        var request = requests.kozaDebitInquiry(inquiry.providerOrderId());
+        var response = idPass.post("SearchTradeMulti.idPass", request, false);
+        String providerStatus = status(response.rawPayload(), "UNKNOWN").toUpperCase();
+        String canonical = switch (providerStatus) {
+            case "PAYSUCCESS" -> "PAID";
+            case "PAYFAIL", "FAILED", "EXPIRED", "CANCEL" -> "FAILED";
+            case "REQSUCCESS" -> "SCHEDULED";
+            default -> canonicalState(providerStatus);
+        };
+        return new PaymentGatewayResult(canonical, providerStatus, inquiry.providerOrderId(),
+                first(response.rawPayload(), "AccessID", "AccessId"),
+                "PROVIDER_STATUS_INQUIRY", "Status refreshed from GMO", "UNKNOWN".equals(canonical),
+                PaymentNextAction.none(), Map.of(), "IDPASS", "SearchTradeMulti",
+                "SearchTradeMulti.idPass", response.statusCode(), safeInt(response.durationMs()),
+                GmoSanitizer.sanitize(asObjectMap(request)), response.sanitizedPayload());
     }
 
     @Override

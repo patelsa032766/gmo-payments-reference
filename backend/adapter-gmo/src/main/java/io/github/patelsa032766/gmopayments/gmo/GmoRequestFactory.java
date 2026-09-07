@@ -234,6 +234,15 @@ public class GmoRequestFactory {
         return fields;
     }
 
+    /** Status inquiry for 口座振替（セレクト）; GMO PayType 28. */
+    public Map<String, String> kozaDebitInquiry(String orderId) {
+        return linkedFields(
+                "ShopID", properties.getShopId(),
+                "ShopPass", properties.getShopPass(),
+                "OrderID", orderId,
+                "PayType", "28");
+    }
+
     private static String kozaBillingDescription(String reference) {
         if (reference == null || reference.isBlank()) return "PREMIUM";
         String safe = reference.toUpperCase(java.util.Locale.ROOT)

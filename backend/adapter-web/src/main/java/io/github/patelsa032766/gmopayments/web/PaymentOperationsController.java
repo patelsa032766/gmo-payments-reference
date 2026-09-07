@@ -2,6 +2,7 @@ package io.github.patelsa032766.gmopayments.web;
 
 import io.github.patelsa032766.gmopayments.application.service.PaymentOperationsQueryService;
 import io.github.patelsa032766.gmopayments.application.service.CapturePaymentService;
+import io.github.patelsa032766.gmopayments.application.service.TransactionInquiryService;
 import io.github.patelsa032766.gmopayments.domain.PaymentInstrumentSnapshot;
 import io.github.patelsa032766.gmopayments.domain.PaymentTransactionSummary;
 import io.github.patelsa032766.gmopayments.domain.PaymentTransactionThread;
@@ -22,12 +23,23 @@ public class PaymentOperationsController {
     private final PaymentOperationsQueryService service;
     private final CapturePaymentService captures;
     private final OperatorActionGuard operatorActions;
+    private final TransactionInquiryService inquiries;
 
     public PaymentOperationsController(PaymentOperationsQueryService service, CapturePaymentService captures,
-                                       OperatorActionGuard operatorActions) {
+                                       OperatorActionGuard operatorActions, TransactionInquiryService inquiries) {
         this.service = service;
         this.captures = captures;
         this.operatorActions = operatorActions;
+        this.inquiries = inquiries;
+    }
+
+    /** Read-only recovery for a delayed or missed asynchronous notification. */
+    @PostMapping("/operations/transactions/{transactionId}/refresh")
+    PaymentSubmissionResult refresh(
+            @PathVariable String transactionId,
+            @RequestHeader(name="X-Operator-Token",required=false) String operatorToken) {
+        operatorActions.requireAuthorized(operatorToken);
+        return inquiries.refresh(transactionId);
     }
 
     @GetMapping("/operations/transactions")

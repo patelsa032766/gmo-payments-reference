@@ -142,6 +142,20 @@ Idempotency-Key: c9f17020-d873-40b2-84c5-d73b7e8fa404
 
 The action is available only when the selected Card or PayPay transaction is `AUTHORIZED`. It sends GMO `/order/capture`, updates the original transaction projection, and appends `CAPTURE_REQUESTED`, `PAYMENT_CAPTURED` (or failure/unknown evidence), and the sanitized provider exchange to that same thread. The operator UI requires a separate confirmation because this is a financial write. A timeout becomes `UNKNOWN`; do not send another capture until inquiry establishes the provider state.
 
+### Recover a missed Koza notification
+
+```http
+POST /api/v1/operations/transactions/TXN-KOZA-123/refresh
+X-Operator-Token: local-operator-token
+```
+
+For a Koza transaction in `SCHEDULED`, `PROCESSING`, or `UNKNOWN`, this performs
+GMO's read-only `SearchTradeMulti.idPass` request with `PayType=28`. A
+`PAYSUCCESS` response advances both the payment transaction and its debit batch
+item to `PAID`; `PAYFAIL` advances them to `FAILED`. The request and sanitized
+response are appended as `INQUIRY` evidence. No `inbound_message` or webhook
+event is fabricated, so operators can distinguish recovery from delivery.
+
 ## Stored instruments and preferences
 
 ```http

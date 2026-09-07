@@ -123,6 +123,17 @@ class GmoRequestFactoryTest {
     }
 
     @Test
+    void kozaStatusInquiryUsesSearchTradeMultiPaymentType28() {
+        var fields = factory.kozaDebitInquiry("TXN-KOZA-123");
+
+        assertThat(fields).containsEntry("ShopID", "shop")
+                .containsEntry("ShopPass", "shop-pass")
+                .containsEntry("OrderID", "TXN-KOZA-123")
+                .containsEntry("PayType", "28")
+                .doesNotContainKeys("AccessPass", "SitePass");
+    }
+
+    @Test
     void cashChargeRemovesNameSeparatorsRejectedByGmo() {
         var payload = factory.cashCharge(facts, "KONBINI", "タナカ　アイコ",
                 "aiko@example.com", "090-1234-5678", "LAWSON");

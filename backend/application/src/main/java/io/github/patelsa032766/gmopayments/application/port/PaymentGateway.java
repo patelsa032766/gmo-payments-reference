@@ -3,6 +3,7 @@ package io.github.patelsa032766.gmopayments.application.port;
 import io.github.patelsa032766.gmopayments.domain.PaymentExecutionContext;
 import io.github.patelsa032766.gmopayments.domain.PaymentContinuationResult;
 import io.github.patelsa032766.gmopayments.domain.PaymentGatewayResult;
+import io.github.patelsa032766.gmopayments.domain.PaymentInquiryContext;
 
 import java.util.Map;
 
@@ -27,6 +28,9 @@ public interface PaymentGateway {
     /** Converts an existing Card or PayPay authorization into a completed sale. */
     PaymentGatewayResult capture(PaymentExecutionContext context, String providerAccessId,
                                  String providerOrderId);
+
+    /** Performs a read-only provider status inquiry; safe-read retries apply. */
+    PaymentGatewayResult inquire(PaymentInquiryContext context);
 
     /** Completes a registration-based checkout after the customer returns from GMO. */
     PaymentContinuationResult continueCheckout(PaymentExecutionContext context,

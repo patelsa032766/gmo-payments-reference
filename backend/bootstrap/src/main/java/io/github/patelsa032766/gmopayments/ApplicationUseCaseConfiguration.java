@@ -29,6 +29,8 @@ import io.github.patelsa032766.gmopayments.application.port.CaptureCommandReposi
 import io.github.patelsa032766.gmopayments.application.service.CapturePaymentService;
 import io.github.patelsa032766.gmopayments.application.port.CheckoutExperienceRepository;
 import io.github.patelsa032766.gmopayments.application.service.CheckoutExperienceService;
+import io.github.patelsa032766.gmopayments.application.port.TransactionInquiryRepository;
+import io.github.patelsa032766.gmopayments.application.service.TransactionInquiryService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -79,6 +81,10 @@ public class ApplicationUseCaseConfiguration {
     }
     @Bean CapturePaymentService capturePaymentService(CaptureCommandRepository repository, PaymentGateway gateway) {
         return new CapturePaymentService(repository, gateway);
+    }
+    @Bean TransactionInquiryService transactionInquiryService(TransactionInquiryRepository repository,
+                                                               PaymentGateway gateway) {
+        return new TransactionInquiryService(repository, gateway);
     }
     @Bean PaymentInstrumentPreferenceService paymentInstrumentPreferenceService(PaymentInstrumentPreferenceRepository repository){return new PaymentInstrumentPreferenceService(repository);}
     @Bean KozaBatchService kozaBatchService(KozaBatchRepository batches,MitCommandRepository commands,PaymentGateway gateway){return new KozaBatchService(batches,commands,gateway);}

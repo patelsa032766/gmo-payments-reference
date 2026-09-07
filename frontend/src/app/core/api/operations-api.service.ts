@@ -38,6 +38,11 @@ export class OperationsApiService {
     return this.http.post<PaymentSubmission>(`/api/v1/operations/transactions/${encodeURIComponent(id)}/capture`,{},
       {headers:{'X-Operator-Token':operatorToken,'Idempotency-Key':idempotencyKey}});
   }
+  refreshFromProvider(id:string,operatorToken:string):Observable<PaymentSubmission>{
+    return this.http.post<PaymentSubmission>(
+      `/api/v1/operations/transactions/${encodeURIComponent(id)}/refresh`,{},
+      {headers:{'X-Operator-Token':operatorToken}});
+  }
   instruments(): Observable<PaymentInstrument[]> { return this.http.get<PaymentInstrument[]>('/api/v1/mit/instruments'); }
   submitMit(instrumentId:string,amountJpy:number,merchantReference:string,authorizationMode:string,
             operatorToken:string,idempotencyKey:string):Observable<PaymentSubmission>{
