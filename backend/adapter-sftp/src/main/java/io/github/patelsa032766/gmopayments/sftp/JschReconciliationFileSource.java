@@ -9,7 +9,6 @@ import io.github.patelsa032766.gmopayments.application.port.ReconciliationFileSo
 import io.github.patelsa032766.gmopayments.domain.DownloadedReconciliationFile;
 import org.springframework.stereotype.Component;
 
-import java.io.ByteArrayOutputStream;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -71,11 +70,8 @@ public final class JschReconciliationFileSource implements ReconciliationFileSou
                 if (size < 0 || size > properties.maxFileBytes()) {
                     throw new IllegalStateException("SFTP file exceeds configured size limit: " + name);
                 }
-                ByteArrayOutputStream output = new ByteArrayOutputStream((int) Math.min(size, 65_536));
+                BoundedDownloadBuffer output = new BoundedDownloadBuffer(properties.maxFileBytes());
                 channel.get(remote(properties.incomingPath(), name), output);
-                if (output.size() > properties.maxFileBytes()) {
-                    throw new IllegalStateException("SFTP file exceeded size limit while downloading: " + name);
-                }
                 files.add(new DownloadedReconciliationFile(name, output.toByteArray(),
                         name + properties.readyMarkerSuffix()));
             }
@@ -107,6 +103,8 @@ public final class JschReconciliationFileSource implements ReconciliationFileSou
         try {
             channel.stat(properties.archivePath());
         } catch (SftpException missing) {
+            // Permission and transport errors are not evidence of a missing directory.
+            if (missing.id != ChannelSftp.SSH_FX_NO_SUCH_FILE) throw missing;
             channel.mkdir(properties.archivePath());
         }
     }

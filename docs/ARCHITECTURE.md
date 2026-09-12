@@ -258,4 +258,30 @@ Koza and real-time bank debit share neither product code nor financial state mac
 
 ## 14. Known production hardening decisions
 
+### Verification status — September 11, 2026
+
+The verification bar described in this document is a target, not a claim that
+every layer already meets it. The initial review-hardening change adds:
+
+- `ReconciliationImportServiceTest`: disabled mode, commit-before-archive,
+  malformed input, persistence failure, and retry after archive failure with a
+  stable checksum. Repository deduplication is modeled by a fake here; this does
+  not prove the SQLite implementation's deduplication behavior.
+- `BoundedDownloadBufferTest`: exact-limit, chunk-overflow, sliced/empty writes,
+  and invalid inputs. The SFTP adapter now rejects excess bytes during download,
+  before retaining the offending chunk, even if remote listing metadata is stale.
+- `SQLiteLockRetryExecutorTest`: transient recovery, five-attempt exhaustion,
+  non-transient failure, and interruption. These are retry-policy unit tests,
+  not real concurrent SQLite lock-contention tests.
+
+Archive-directory creation now occurs only for an SFTP “no such file” response;
+permission or other server failures propagate instead of triggering `mkdir`.
+Live SFTP connection/host-key and archive-directory behavior still need adapter
+integration coverage. The backend Maven suite passes with these additions.
+
+Remaining review work includes focused checkout/capture/MIT orchestration tests,
+real SQLite atomicity/deduplication/contention tests, replacing positional
+`PaymentGatewayResult` construction, and splitting the multi-product GMO adapter
+behind characterization tests. Those refactors are not part of this first fix.
+
 The reference uses a shared operator token to make local workflows runnable and exposes a global, default-on enforcement switch for local testing. Disabling that switch permits every operator mutation without the token and must never be treated as a production security model. A production deployment must keep protection enabled and replace it with organization identity, authorization, CSRF/session policy, audit attribution, and role enforcement. Product contracts, callback allowlists, retention periods, observability export, backup objectives, disaster recovery, and a server database decision remain deployment-owner responsibilities.
